@@ -37,10 +37,8 @@ impl WorktreeManager {
         let out = self.git.list_worktrees_porcelain()?;
         let tmp_entries = parse_worktree_porcelain(&out);
 
-        let current_top = self.git.repo_root().to_path_buf();
-
         let mut worktrees = Vec::new();
-        for entry in tmp_entries {
+        for (index, entry) in tmp_entries.into_iter().enumerate() {
             let path = entry.path;
             let mut branch = entry.branch;
             let head = entry.head;
@@ -63,7 +61,7 @@ impl WorktreeManager {
                 path: path.clone(),
                 branch,
                 commit_hash: head,
-                is_main: path_buf == current_top,
+                is_main: index == 0,
                 created_at,
             });
         }
