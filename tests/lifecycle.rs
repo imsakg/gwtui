@@ -7,6 +7,16 @@ use gwtui::config::Config;
 use gwtui::core::git::Git;
 use gwtui::core::worktree::WorktreeManager;
 
+#[test]
+fn listing_preserves_whitespace_and_newlines_in_paths() {
+    let repo = TestRepo::new();
+    let linked = repo.child("line\nbreak and trailing ");
+    repo.git(&["worktree", "add", "-b", "topic", linked.to_str().unwrap()]);
+    let worktree = manager(&repo.path).list().unwrap().remove(1);
+    assert_eq!(worktree.path, linked.to_str().unwrap());
+    assert_eq!(worktree.branch, "topic");
+}
+
 fn manager(path: &Path) -> WorktreeManager {
     WorktreeManager::new(Git::from_dir(path).unwrap(), Config::default())
 }

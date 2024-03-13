@@ -55,7 +55,7 @@ impl Git {
     }
 
     pub fn list_worktrees_porcelain(&self) -> Result<String, GwtuiError> {
-        self.run(&["worktree", "list", "--porcelain"])
+        self.run(&["worktree", "list", "--porcelain", "-z"])
     }
 
     pub fn add_worktree(

@@ -245,8 +245,7 @@ fn parse_worktree_porcelain(out: &str) -> Vec<PorcelainEntry> {
     let mut cur_branch = String::new();
     let mut cur_head = String::new();
 
-    for line in out.lines() {
-        let line = line.trim_end();
+    for line in out.split('\0') {
         if let Some(path) = line.strip_prefix("worktree ") {
             if let Some(p) = cur_path.take() {
                 entries.push(PorcelainEntry {
@@ -260,11 +259,11 @@ fn parse_worktree_porcelain(out: &str) -> Vec<PorcelainEntry> {
             cur_path = Some(path.to_owned());
         } else if let Some(branch) = line.strip_prefix("branch ") {
             branch
-                .trim()
-                .trim_start_matches("refs/heads/")
+                .strip_prefix("refs/heads/")
+                .unwrap_or(branch)
                 .clone_into(&mut cur_branch);
         } else if let Some(head) = line.strip_prefix("HEAD ") {
-            head.trim().clone_into(&mut cur_head);
+            head.clone_into(&mut cur_head);
         }
     }
     if let Some(p) = cur_path.take() {
@@ -298,7 +297,7 @@ HEAD 3333333333333333333333333333333333333333
 detached
 "#;
 
-        let entries = parse_worktree_porcelain(out);
+        let entries = parse_worktree_porcelain(&out.replace('\n', "\0"));
         assert_eq!(entries.len(), 3);
         assert_eq!(
             entries[0],
