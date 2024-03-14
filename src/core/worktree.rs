@@ -158,7 +158,28 @@ impl WorktreeManager {
     }
 
     pub fn remove(&self, path: &Path, force: bool) -> Result<(), GwtuiError> {
+        self.ensure_not_main(path, "remove")?;
         self.git.remove_worktree(path, force)
+    }
+
+    fn ensure_not_main(&self, path: &Path, operation: &str) -> Result<(), GwtuiError> {
+        let target = self.absolute_path(path);
+        if let Some(main) = self.list()?.first()
+            && paths_equal(&target, Path::new(&main.path))
+        {
+            return Err(GwtuiError::Other(format!(
+                "cannot {operation} the main worktree"
+            )));
+        }
+        Ok(())
+    }
+
+    fn absolute_path(&self, path: &Path) -> PathBuf {
+        if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            self.git.repo_root().join(path)
+        }
     }
 
     pub fn remove_with_branch(
@@ -310,6 +331,10 @@ detached
         assert_eq!(entries[1].branch, "feature/test");
         assert_eq!(entries[2].branch, "");
     }
+}
+
+fn paths_equal(left: &Path, right: &Path) -> bool {
+    left == right || matches!((left.canonicalize(), right.canonicalize()), (Ok(a), Ok(b)) if a == b)
 }
 
 fn system_time_to_rfc3339(t: std::time::SystemTime) -> Option<String> {

@@ -17,6 +17,20 @@ fn listing_preserves_whitespace_and_newlines_in_paths() {
     assert_eq!(worktree.branch, "topic");
 }
 
+#[test]
+fn main_removal_is_guarded_even_through_a_path_alias() {
+    let repo = TestRepo::new();
+    let error = manager(&repo.path)
+        .remove(&repo.path.join("."), true)
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("cannot remove the main worktree")
+    );
+    assert!(repo.path.join(".git").is_dir());
+}
+
 fn manager(path: &Path) -> WorktreeManager {
     WorktreeManager::new(Git::from_dir(path).unwrap(), Config::default())
 }
