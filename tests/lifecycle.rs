@@ -31,6 +31,18 @@ fn main_removal_is_guarded_even_through_a_path_alias() {
     assert!(repo.path.join(".git").is_dir());
 }
 
+#[test]
+fn removing_with_the_wrong_branch_does_not_remove_the_worktree() {
+    let repo = TestRepo::new();
+    let linked = repo.child("topic");
+    repo.git(&["worktree", "add", "-b", "topic", linked.to_str().unwrap()]);
+    repo.git(&["branch", "unrelated"]);
+    let result = manager(&repo.path).remove_with_branch(&linked, "unrelated", false, true, true);
+    assert!(result.is_err());
+    assert!(linked.exists());
+    assert_eq!(repo.git(&["branch", "--list", "unrelated"]), "unrelated");
+}
+
 fn manager(path: &Path) -> WorktreeManager {
     WorktreeManager::new(Git::from_dir(path).unwrap(), Config::default())
 }

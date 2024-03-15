@@ -190,8 +190,21 @@ impl WorktreeManager {
         delete_branch: bool,
         force_branch: bool,
     ) -> Result<(), GwtuiError> {
-        self.git.remove_worktree(path, force_worktree)?;
-        if delete_branch && !branch.is_empty() {
+        if delete_branch {
+            let target = self.absolute_path(path);
+            let worktree = self
+                .list()?
+                .into_iter()
+                .find(|wt| paths_equal(&target, Path::new(&wt.path)))
+                .ok_or_else(|| GwtuiError::WorktreeNotFound(path.display().to_string()))?;
+            if branch.is_empty() || worktree.branch != branch {
+                return Err(GwtuiError::Other(
+                    "branch does not match the worktree being removed".to_owned(),
+                ));
+            }
+        }
+        self.remove(path, force_worktree)?;
+        if delete_branch {
             self.git.delete_branch(branch, force_branch)?;
         }
         Ok(())
