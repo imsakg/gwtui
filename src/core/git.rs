@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -64,11 +65,23 @@ impl Git {
         branch: &str,
         create_branch: bool,
     ) -> Result<(), GwtuiError> {
-        let path = path.to_string_lossy();
         if create_branch {
-            let _ = self.run(&["worktree", "add", "-b", branch, &path])?;
+            self.run_os(&[
+                "worktree".as_ref(),
+                "add".as_ref(),
+                "-b".as_ref(),
+                branch.as_ref(),
+                "--".as_ref(),
+                path.as_os_str(),
+            ])?;
         } else {
-            let _ = self.run(&["worktree", "add", &path, branch])?;
+            self.run_os(&[
+                "worktree".as_ref(),
+                "add".as_ref(),
+                "--".as_ref(),
+                path.as_os_str(),
+                branch.as_ref(),
+            ])?;
         }
         Ok(())
     }
@@ -79,22 +92,28 @@ impl Git {
         branch: &str,
         base: Option<&str>,
     ) -> Result<(), GwtuiError> {
-        let path = path.to_string_lossy();
+        let mut args: Vec<&OsStr> = vec![
+            "worktree".as_ref(),
+            "add".as_ref(),
+            "-b".as_ref(),
+            branch.as_ref(),
+            "--".as_ref(),
+            path.as_os_str(),
+        ];
         if let Some(base) = base {
-            let _ = self.run(&["worktree", "add", "-b", branch, &path, base])?;
-        } else {
-            let _ = self.run(&["worktree", "add", "-b", branch, &path])?;
+            args.push(base.as_ref());
         }
+        self.run_os(&args)?;
         Ok(())
     }
 
     pub fn remove_worktree(&self, path: &Path, force: bool) -> Result<(), GwtuiError> {
-        let path = path.to_string_lossy();
+        let mut args: Vec<&OsStr> = vec!["worktree".as_ref(), "remove".as_ref()];
         if force {
-            let _ = self.run(&["worktree", "remove", "--force", &path])?;
-        } else {
-            let _ = self.run(&["worktree", "remove", &path])?;
+            args.push("--force".as_ref());
         }
+        args.extend(["--".as_ref(), path.as_os_str()]);
+        self.run_os(&args)?;
         Ok(())
     }
 
@@ -170,6 +189,25 @@ impl Git {
                 "git {}: {}",
                 args.join(" "),
                 stderr.trim()
+            )))
+        }
+    }
+
+    fn run_os(&self, args: &[&OsStr]) -> Result<String, GwtuiError> {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(&self.repo_root)
+            .output()
+            .map_err(|e| match e.kind() {
+                std::io::ErrorKind::NotFound => GwtuiError::GitNotFound,
+                _ => GwtuiError::Other(format!("failed to run git: {e}")),
+            })?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        } else {
+            Err(GwtuiError::Other(format!(
+                "git {args:?}: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
             )))
         }
     }

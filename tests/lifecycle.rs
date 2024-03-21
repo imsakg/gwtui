@@ -43,6 +43,27 @@ fn removing_with_the_wrong_branch_does_not_remove_the_worktree() {
     assert_eq!(repo.git(&["branch", "--list", "unrelated"]), "unrelated");
 }
 
+#[cfg(unix)]
+#[test]
+fn git_path_arguments_preserve_non_utf8_bytes() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let repo = TestRepo::new();
+    let path = repo.temp.path().join(OsStr::from_bytes(b"linked-\xff"));
+    let git = Git::from_dir(&repo.path).unwrap();
+    let result = git.add_worktree(&path, "byte-path", true);
+    // macOS filesystems reject invalid UTF-8; never silently create a different path.
+    if cfg!(target_os = "macos") {
+        assert!(result.is_err());
+        assert!(!repo.temp.path().join("linked-�").exists());
+    } else {
+        result.unwrap();
+        assert!(path.join(".git").is_file());
+        git.remove_worktree(&path, false).unwrap();
+        assert!(!path.exists());
+    }
+}
+
 fn manager(path: &Path) -> WorktreeManager {
     WorktreeManager::new(Git::from_dir(path).unwrap(), Config::default())
 }
