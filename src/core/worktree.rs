@@ -157,6 +157,20 @@ impl WorktreeManager {
         Ok(expanded)
     }
 
+    pub fn add_detached(&self, path: &Path, revision: Option<&str>) -> Result<(), GwtuiError> {
+        let path = self.absolute_path(path);
+        self.validate_worktree_path(&path)?;
+        if self.cfg.worktree.auto_mkdir
+            && let Some(parent) = path.parent()
+        {
+            std::fs::create_dir_all(parent).map_err(|source| GwtuiError::IoPath {
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        }
+        self.git.add_detached_worktree(&path, revision)
+    }
+
     pub fn remove(&self, path: &Path, force: bool) -> Result<(), GwtuiError> {
         self.ensure_not_main(path, "remove")?;
         self.git.remove_worktree(path, force)

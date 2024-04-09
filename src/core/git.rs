@@ -107,6 +107,22 @@ impl Git {
         Ok(())
     }
 
+    pub fn add_detached_worktree(
+        &self,
+        path: &Path,
+        revision: Option<&str>,
+    ) -> Result<(), GwtuiError> {
+        self.run_os(&[
+            "worktree".as_ref(),
+            "add".as_ref(),
+            "--detach".as_ref(),
+            "--".as_ref(),
+            path.as_os_str(),
+            revision.unwrap_or("HEAD").as_ref(),
+        ])?;
+        Ok(())
+    }
+
     pub fn remove_worktree(&self, path: &Path, force: bool) -> Result<(), GwtuiError> {
         let mut args: Vec<&OsStr> = vec!["worktree".as_ref(), "remove".as_ref()];
         if force {
