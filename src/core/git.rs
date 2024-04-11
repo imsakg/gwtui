@@ -112,15 +112,30 @@ impl Git {
         path: &Path,
         revision: Option<&str>,
     ) -> Result<(), GwtuiError> {
+        let revision = self.resolve_commit(revision.unwrap_or("HEAD"))?;
         self.run_os(&[
             "worktree".as_ref(),
             "add".as_ref(),
             "--detach".as_ref(),
             "--".as_ref(),
             path.as_os_str(),
-            revision.unwrap_or("HEAD").as_ref(),
+            revision.as_ref(),
         ])?;
         Ok(())
+    }
+
+    fn resolve_commit(&self, revision: &str) -> Result<String, GwtuiError> {
+        if revision.is_empty() || revision.starts_with('-') || revision.contains('\0') {
+            return Err(GwtuiError::Other(format!("invalid revision: {revision:?}")));
+        }
+        self.run(&[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &format!("{revision}^{{commit}}"),
+        ])
+        .map(|out| out.trim().to_owned())
+        .map_err(|error| GwtuiError::Other(format!("invalid revision {revision:?}: {error}")))
     }
 
     pub fn remove_worktree(&self, path: &Path, force: bool) -> Result<(), GwtuiError> {

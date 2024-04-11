@@ -7,6 +7,23 @@ use gwtui::{
 };
 
 #[test]
+fn detached_revision_is_verified_before_creating_the_destination() {
+    let repo = TestRepo::new();
+    let manager = WorktreeManager::new(Git::new(repo.path.clone()), Config::default());
+    let first = repo.git(&["rev-parse", "HEAD"]);
+    repo.git(&["commit", "--allow-empty", "-m", "second"]);
+    let destination = repo.child("older");
+    manager.add_detached(&destination, Some("HEAD^")).unwrap();
+    assert_eq!(common::git(&destination, &["rev-parse", "HEAD"]), first);
+    for revision in ["", "--orphan", "HEAD:README.md", "does-not-exist"] {
+        let target = repo.child("invalid");
+        let error = manager.add_detached(&target, Some(revision)).unwrap_err();
+        assert!(error.to_string().contains("revision"), "{error}");
+        assert!(!target.exists());
+    }
+}
+
+#[test]
 fn detached_add_defaults_to_head_without_creating_a_branch() {
     let repo = TestRepo::new();
     let destination = repo.child("detached");
