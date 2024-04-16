@@ -224,6 +224,14 @@ impl WorktreeManager {
         Ok(())
     }
 
+    pub fn lock(&self, path: &Path, reason: Option<&str>) -> Result<(), GwtuiError> {
+        self.git.lock_worktree(path, reason)
+    }
+
+    pub fn unlock(&self, path: &Path) -> Result<(), GwtuiError> {
+        self.git.unlock_worktree(path)
+    }
+
     pub fn prune(&self) -> Result<(), GwtuiError> {
         self.git.prune_worktrees()
     }

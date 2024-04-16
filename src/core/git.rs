@@ -148,6 +148,26 @@ impl Git {
         Ok(())
     }
 
+    pub fn lock_worktree(&self, path: &Path, reason: Option<&str>) -> Result<(), GwtuiError> {
+        let mut args: Vec<&OsStr> = vec!["worktree".as_ref(), "lock".as_ref()];
+        if let Some(reason) = reason {
+            args.extend([OsStr::new("--reason"), OsStr::new(reason)]);
+        }
+        args.extend(["--".as_ref(), path.as_os_str()]);
+        self.run_os(&args)?;
+        Ok(())
+    }
+
+    pub fn unlock_worktree(&self, path: &Path) -> Result<(), GwtuiError> {
+        self.run_os(&[
+            "worktree".as_ref(),
+            "unlock".as_ref(),
+            "--".as_ref(),
+            path.as_os_str(),
+        ])?;
+        Ok(())
+    }
+
     pub fn prune_worktrees(&self) -> Result<(), GwtuiError> {
         let _ = self.run(&["worktree", "prune"])?;
         Ok(())
