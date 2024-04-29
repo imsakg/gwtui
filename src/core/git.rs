@@ -168,6 +168,17 @@ impl Git {
         Ok(())
     }
 
+    pub fn move_worktree(&self, source: &Path, destination: &Path) -> Result<(), GwtuiError> {
+        self.run_os(&[
+            OsStr::new("worktree"),
+            OsStr::new("move"),
+            OsStr::new("--"),
+            source.as_os_str(),
+            destination.as_os_str(),
+        ])?;
+        Ok(())
+    }
+
     pub fn prune_worktrees(&self) -> Result<(), GwtuiError> {
         let _ = self.run(&["worktree", "prune"])?;
         Ok(())

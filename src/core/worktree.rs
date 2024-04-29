@@ -232,6 +232,13 @@ impl WorktreeManager {
         self.git.unlock_worktree(path)
     }
 
+    pub fn move_worktree(&self, source: &Path, destination: &Path) -> Result<(), GwtuiError> {
+        self.ensure_not_main(source, "move")?;
+        let destination = self.absolute_path(destination);
+        self.validate_worktree_path(&destination)?;
+        self.git.move_worktree(source, &destination)
+    }
+
     pub fn prune(&self) -> Result<(), GwtuiError> {
         self.git.prune_worktrees()
     }
