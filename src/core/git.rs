@@ -179,6 +179,17 @@ impl Git {
         Ok(())
     }
 
+    pub fn repair_worktrees(&self, paths: &[PathBuf]) -> Result<(), GwtuiError> {
+        let mut args = vec![
+            OsStr::new("worktree"),
+            OsStr::new("repair"),
+            OsStr::new("--"),
+        ];
+        args.extend(paths.iter().map(|path| path.as_os_str()));
+        self.run_os(&args)?;
+        Ok(())
+    }
+
     pub fn prune_worktrees(&self) -> Result<(), GwtuiError> {
         let _ = self.run(&["worktree", "prune"])?;
         Ok(())

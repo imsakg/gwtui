@@ -239,6 +239,10 @@ impl WorktreeManager {
         self.git.move_worktree(source, &destination)
     }
 
+    pub fn repair(&self, paths: &[PathBuf]) -> Result<(), GwtuiError> {
+        self.git.repair_worktrees(paths)
+    }
+
     pub fn prune(&self) -> Result<(), GwtuiError> {
         self.git.prune_worktrees()
     }
