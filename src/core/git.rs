@@ -191,8 +191,31 @@ impl Git {
     }
 
     pub fn prune_worktrees(&self) -> Result<(), GwtuiError> {
-        let _ = self.run(&["worktree", "prune"])?;
+        self.prune_worktrees_with_options(false, None)?;
         Ok(())
+    }
+
+    pub fn prune_worktrees_with_options(
+        &self,
+        dry_run: bool,
+        expire: Option<&str>,
+    ) -> Result<String, GwtuiError> {
+        let mut args = vec!["worktree", "prune", "--verbose"];
+        if dry_run {
+            args.push("--dry-run");
+        }
+        let expiry;
+        if let Some(expire) = expire {
+            expiry = format!("--expire={expire}");
+            args.push(&expiry);
+        }
+        let args: Vec<&OsStr> = args.into_iter().map(OsStr::new).collect();
+        let out = self.run_os_output(&args)?;
+        Ok(format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        ))
     }
 
     pub fn delete_branch(&self, branch: &str, force: bool) -> Result<(), GwtuiError> {
@@ -267,6 +290,11 @@ impl Git {
     }
 
     fn run_os(&self, args: &[&OsStr]) -> Result<String, GwtuiError> {
+        let out = self.run_os_output(args)?;
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    fn run_os_output(&self, args: &[&OsStr]) -> Result<Output, GwtuiError> {
         let out = Command::new("git")
             .args(args)
             .current_dir(&self.repo_root)
@@ -276,7 +304,7 @@ impl Git {
                 _ => GwtuiError::Other(format!("failed to run git: {e}")),
             })?;
         if out.status.success() {
-            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+            Ok(out)
         } else {
             Err(GwtuiError::Other(format!(
                 "git {args:?}: {}",

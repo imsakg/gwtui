@@ -247,6 +247,14 @@ impl WorktreeManager {
         self.git.prune_worktrees()
     }
 
+    pub fn prune_with_options(
+        &self,
+        dry_run: bool,
+        expire: Option<&str>,
+    ) -> Result<String, GwtuiError> {
+        self.git.prune_worktrees_with_options(dry_run, expire)
+    }
+
     pub fn get_matching_worktrees(&self, pattern: &str) -> Result<Vec<Worktree>, GwtuiError> {
         let worktrees = self.list()?;
         let p = pattern.to_lowercase();
