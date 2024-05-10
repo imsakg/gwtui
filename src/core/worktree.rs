@@ -255,6 +255,29 @@ impl WorktreeManager {
         self.git.prune_worktrees_with_options(dry_run, expire)
     }
 
+    pub fn resolve(&self, pattern: &str) -> Result<Worktree, GwtuiError> {
+        let worktrees = self.list()?;
+        let exact: Vec<_> = worktrees
+            .iter()
+            .filter(|wt| wt.branch == pattern || wt.path == pattern)
+            .collect();
+        match exact.as_slice() {
+            [worktree] => return Ok((*worktree).clone()),
+            [] => {}
+            _ => return Err(GwtuiError::AmbiguousWorktree(pattern.to_owned())),
+        }
+        let pattern_lower = pattern.to_lowercase();
+        let mut matches = worktrees.into_iter().filter(|wt| {
+            wt.branch.to_lowercase().contains(&pattern_lower)
+                || wt.path.to_lowercase().contains(&pattern_lower)
+        });
+        match (matches.next(), matches.next()) {
+            (Some(worktree), None) => Ok(worktree),
+            (None, _) => Err(GwtuiError::WorktreeNotFound(pattern.to_owned())),
+            _ => Err(GwtuiError::AmbiguousWorktree(pattern.to_owned())),
+        }
+    }
+
     pub fn get_matching_worktrees(&self, pattern: &str) -> Result<Vec<Worktree>, GwtuiError> {
         let worktrees = self.list()?;
         let p = pattern.to_lowercase();
