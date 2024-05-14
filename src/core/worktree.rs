@@ -256,6 +256,9 @@ impl WorktreeManager {
     }
 
     pub fn resolve(&self, pattern: &str) -> Result<Worktree, GwtuiError> {
+        if pattern.trim().is_empty() || pattern.contains('\0') {
+            return Err(GwtuiError::WorktreeNotFound(pattern.to_owned()));
+        }
         let worktrees = self.list()?;
         let exact: Vec<_> = worktrees
             .iter()

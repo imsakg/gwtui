@@ -8,6 +8,18 @@ use gwtui::{
 };
 
 #[test]
+fn empty_resolver_selectors_never_default_to_the_only_worktree() {
+    let repo = TestRepo::new();
+    let manager = WorktreeManager::new(Git::new(repo.path.clone()), Config::default());
+    for pattern in ["", " ", "\t\n"] {
+        assert!(matches!(
+            manager.resolve(pattern),
+            Err(GwtuiError::WorktreeNotFound(_))
+        ));
+    }
+}
+
+#[test]
 fn resolve_prefers_exact_branch_or_path_and_rejects_fuzzy_ambiguity() {
     let repo = TestRepo::new();
     let manager = WorktreeManager::new(Git::new(repo.path.clone()), Config::default());
