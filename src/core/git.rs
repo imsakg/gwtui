@@ -231,7 +231,7 @@ impl Git {
         let mut args = vec![
             "branch",
             "-v",
-            "--format=%(refname:short)|%(HEAD)|%(committerdate:iso)|%(objectname)|%(subject)|%(authorname)",
+            "--format=%(refname:short)%00%(HEAD)%00%(committerdate:iso)%00%(objectname)%00%(subject)%00%(authorname)",
         ];
         if include_remote {
             args.push("-a");
@@ -239,11 +239,10 @@ impl Git {
         let out = self.run(&args)?;
         let mut branches = Vec::new();
         for line in out.lines() {
-            let line = line.trim();
             if line.is_empty() {
                 continue;
             }
-            let parts: Vec<&str> = line.split('|').collect();
+            let parts: Vec<&str> = line.split('\0').collect();
             if parts.len() < 6 {
                 continue;
             }
