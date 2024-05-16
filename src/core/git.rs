@@ -229,12 +229,12 @@ impl Git {
 
     pub fn list_branches(&self, include_remote: bool) -> Result<Vec<Branch>, GwtuiError> {
         let mut args = vec![
-            "branch",
-            "-v",
-            "--format=%(refname:short)%00%(HEAD)%00%(committerdate:iso)%00%(objectname)%00%(subject)%00%(authorname)",
+            "for-each-ref",
+            "--format=%(refname)%00%(HEAD)%00%(committerdate:iso)%00%(objectname)%00%(subject)%00%(authorname)%00%(symref)",
+            "refs/heads/",
         ];
         if include_remote {
-            args.push("-a");
+            args.push("refs/remotes/");
         }
         let out = self.run(&args)?;
         let mut branches = Vec::new();
@@ -243,21 +243,21 @@ impl Git {
                 continue;
             }
             let parts: Vec<&str> = line.split('\0').collect();
-            if parts.len() < 6 {
+            if parts.len() != 7 || !parts[6].is_empty() {
                 continue;
             }
-            let mut name = parts[0].to_owned();
+            let (name, is_remote) = if let Some(name) = parts[0].strip_prefix("refs/remotes/") {
+                (name.to_owned(), true)
+            } else if let Some(name) = parts[0].strip_prefix("refs/heads/") {
+                (name.to_owned(), false)
+            } else {
+                continue;
+            };
             let is_current = parts[1] == "*";
             let date_iso = parts[2].to_owned();
             let hash = parts[3].to_owned();
             let message = parts[4].to_owned();
             let author = parts[5].to_owned();
-
-            let mut is_remote = false;
-            if name.starts_with("remotes/") {
-                is_remote = true;
-                name.drain(.."remotes/".len());
-            }
 
             branches.push(Branch {
                 name,
