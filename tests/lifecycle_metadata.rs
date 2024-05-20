@@ -4,6 +4,22 @@ use common::TestRepo;
 use gwtui::core::git::Git;
 
 #[test]
+fn history_records_preserve_pipe_subjects_and_author_names() {
+    let repo = TestRepo::new();
+    repo.git(&["config", "user.name", "History | Writer"]);
+    repo.git(&["commit", "--allow-empty", "-m", "one | two | three"]);
+    let commits = Git::new(repo.path.clone())
+        .get_recent_commits(&repo.path, 2)
+        .unwrap();
+    assert_eq!(commits.len(), 2);
+    assert_eq!(commits[0].message, "one | two | three");
+    assert_eq!(commits[0].author, "History | Writer");
+    assert_eq!(commits[0].hash, repo.git(&["rev-parse", "HEAD"]));
+    assert_eq!(commits[1].message, "initial");
+    assert!(!commits[0].date_iso.is_empty());
+}
+
+#[test]
 fn remote_identity_comes_from_full_refs_not_display_name_prefixes() {
     let repo = TestRepo::new();
     repo.git(&["branch", "upstream/topic"]);

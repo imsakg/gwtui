@@ -352,16 +352,20 @@ impl Git {
     ) -> Result<Vec<CommitInfo>, GwtuiError> {
         let out = self.run_in_dir(
             dir,
-            &["log", &format!("-{limit}"), "--pretty=format:%H|%s|%an|%ai"],
+            &[
+                "log",
+                &format!("--max-count={limit}"),
+                "--pretty=format:%H%x00%s%x00%an%x00%ai",
+                "--",
+            ],
         )?;
         let mut commits = Vec::new();
         for line in out.lines() {
-            let line = line.trim();
             if line.is_empty() {
                 continue;
             }
-            let parts: Vec<&str> = line.split('|').collect();
-            if parts.len() < 4 {
+            let parts: Vec<&str> = line.split('\0').collect();
+            if parts.len() != 4 {
                 continue;
             }
             commits.push(CommitInfo {
