@@ -65,6 +65,7 @@ impl Git {
         branch: &str,
         create_branch: bool,
     ) -> Result<(), GwtuiError> {
+        self.validate_branch(branch)?;
         if create_branch {
             self.run_os(&[
                 "worktree".as_ref(),
@@ -92,6 +93,7 @@ impl Git {
         branch: &str,
         base: Option<&str>,
     ) -> Result<(), GwtuiError> {
+        self.validate_branch(branch)?;
         let mut args: Vec<&OsStr> = vec![
             "worktree".as_ref(),
             "add".as_ref(),
@@ -219,12 +221,25 @@ impl Git {
     }
 
     pub fn delete_branch(&self, branch: &str, force: bool) -> Result<(), GwtuiError> {
+        self.validate_branch(branch)?;
         if force {
-            let _ = self.run(&["branch", "-D", branch])?;
+            let _ = self.run(&["branch", "-D", "--", branch])?;
         } else {
-            let _ = self.run(&["branch", "-d", branch])?;
+            let _ = self.run(&["branch", "-d", "--", branch])?;
         }
         Ok(())
+    }
+
+    fn validate_branch(&self, branch: &str) -> Result<(), GwtuiError> {
+        if branch.is_empty() || branch.starts_with('-') || branch == "HEAD" || branch.contains('\0')
+        {
+            return Err(GwtuiError::Other(format!(
+                "invalid branch name: {branch:?}"
+            )));
+        }
+        self.run(&["check-ref-format", &format!("refs/heads/{branch}")])
+            .map(|_| ())
+            .map_err(|_| GwtuiError::Other(format!("invalid branch name: {branch:?}")))
     }
 
     pub fn list_branches(&self, include_remote: bool) -> Result<Vec<Branch>, GwtuiError> {
