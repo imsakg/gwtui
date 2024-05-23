@@ -102,7 +102,10 @@ impl Git {
             "--".as_ref(),
             path.as_os_str(),
         ];
-        if let Some(base) = base {
+        let base = base
+            .map(|revision| self.resolve_commit(revision))
+            .transpose()?;
+        if let Some(base) = &base {
             args.push(base.as_ref());
         }
         self.run_os(&args)?;
