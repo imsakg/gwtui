@@ -174,6 +174,14 @@ fn process_status_line(line: &str, status: &mut GitStatus) {
         status.staged += 1;
     }
 
+    if matches!(
+        (index, worktree),
+        ('D', 'D') | ('A', 'U') | ('U', 'D') | ('U', 'A') | ('D', 'U') | ('A', 'A') | ('U', 'U')
+    ) {
+        status.conflicts += 1;
+        return;
+    }
+
     match worktree {
         'M' => status.modified += 1,
         'A' => status.added += 1,
@@ -456,6 +464,16 @@ fn count_total_changes(gs: GitStatus) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recognizes_every_unmerged_porcelain_pair() {
+        for xy in ["DD", "AU", "UD", "UA", "DU", "AA", "UU"] {
+            let mut gs = GitStatus::default();
+            process_status_line(&format!("{xy} conflict.txt"), &mut gs);
+            assert_eq!(gs.conflicts, 1, "{xy}");
+            assert_eq!(determine_worktree_state(&gs), WorktreeState::Conflict);
+        }
+    }
 
     #[test]
     fn parses_git_status_porcelain_v1_lines() {
