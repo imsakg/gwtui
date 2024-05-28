@@ -170,16 +170,16 @@ fn process_status_line(line: &str, status: &mut GitStatus) {
     let index = bytes[0] as char;
     let worktree = bytes[1] as char;
 
-    if index != ' ' && index != '?' {
-        status.staged += 1;
-    }
-
     if matches!(
         (index, worktree),
         ('D', 'D') | ('A', 'U') | ('U', 'D') | ('U', 'A') | ('D', 'U') | ('A', 'A') | ('U', 'U')
     ) {
         status.conflicts += 1;
         return;
+    }
+
+    if index != ' ' && index != '?' {
+        status.staged += 1;
     }
 
     match worktree {
@@ -464,6 +464,16 @@ fn count_total_changes(gs: GitStatus) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unresolved_entries_are_not_staged_changes() {
+        for xy in ["DD", "AU", "UD", "UA", "DU", "AA", "UU"] {
+            let mut gs = GitStatus::default();
+            process_status_line(&format!("{xy} conflict.txt"), &mut gs);
+            assert_eq!(gs.staged, 0, "{xy}");
+            assert_eq!(gs.modified + gs.added + gs.deleted, 0, "{xy}");
+        }
+    }
 
     #[test]
     fn recognizes_every_unmerged_porcelain_pair() {
