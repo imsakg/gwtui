@@ -153,8 +153,8 @@ fn collect_git_status(git: &Git, fetch_remote: bool) -> Result<GitStatus, GwtuiE
     }
 
     // Count untracked via ls-files for accuracy.
-    if let Ok(untracked) = git.run(&["ls-files", "--others", "--exclude-standard"]) {
-        let count = untracked.lines().filter(|l| !l.trim().is_empty()).count();
+    if let Ok(untracked) = git.run(&["ls-files", "-z", "--others", "--exclude-standard"]) {
+        let count = untracked.split('\0').filter(|p| !p.is_empty()).count();
         status.untracked = u32::try_from(count).unwrap_or(u32::MAX);
     }
 
