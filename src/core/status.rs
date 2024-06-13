@@ -129,6 +129,7 @@ fn collect_one_blocking(
         status.last_activity = format_rfc3339(last).unwrap_or_else(|| "unknown".to_owned());
         if let Ok(age) = SystemTime::now().duration_since(last)
             && age > opts.stale_threshold
+            && status.status == WorktreeState::Clean
         {
             status.status = WorktreeState::Stale;
         }

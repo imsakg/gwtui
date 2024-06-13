@@ -42,3 +42,35 @@ async fn untracked_paths_are_counted_without_filename_line_parsing() {
     assert_eq!(s.git_status.untracked, 4);
     assert_eq!(s.status, WorktreeState::Modified);
 }
+
+#[tokio::test]
+async fn stale_age_does_not_hide_dirty_or_conflicted_worktrees() {
+    let repo = TestRepo::new();
+    assert_eq!(
+        status(&repo, Duration::ZERO).await.status,
+        WorktreeState::Stale
+    );
+    std::fs::write(repo.path.join("README.md"), "changed\n").unwrap();
+    assert_eq!(
+        status(&repo, Duration::ZERO).await.status,
+        WorktreeState::Modified
+    );
+    repo.git(&["add", "README.md"]);
+    assert_eq!(
+        status(&repo, Duration::ZERO).await.status,
+        WorktreeState::Staged
+    );
+    repo.git(&["commit", "-m", "main change"]);
+    repo.git(&["checkout", "-b", "other", "HEAD~1"]);
+    std::fs::write(repo.path.join("README.md"), "other\n").unwrap();
+    repo.git(&["commit", "-am", "other change"]);
+    let merge = std::process::Command::new("git")
+        .args(["merge", "main"])
+        .current_dir(&repo.path)
+        .output()
+        .unwrap();
+    assert!(!merge.status.success());
+    let s = status(&repo, Duration::ZERO).await;
+    assert_eq!(s.git_status.conflicts, 1);
+    assert_eq!(s.status, WorktreeState::Conflict);
+}
