@@ -34,6 +34,30 @@ pub struct GitStatus {
     pub conflicts: u32,
 }
 
+impl GitStatus {
+    /// Whether any local change or unresolved conflict is present.
+    #[must_use]
+    pub fn is_dirty(&self) -> bool {
+        self.total_changes() != 0
+    }
+
+    /// Sum change buckets, saturating at `u32::MAX` (not unique paths).
+    /// A staged path with unstaged edits contributes to both buckets.
+    #[must_use]
+    pub fn total_changes(&self) -> u32 {
+        [
+            self.modified,
+            self.added,
+            self.deleted,
+            self.untracked,
+            self.staged,
+            self.conflicts,
+        ]
+        .into_iter()
+        .fold(0, u32::saturating_add)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorktreeStatus {
     pub path: String,
@@ -459,12 +483,38 @@ fn status_priority(status: WorktreeState) -> u32 {
 }
 
 fn count_total_changes(gs: GitStatus) -> u32 {
-    gs.modified + gs.added + gs.deleted + gs.untracked + gs.staged
+    gs.total_changes()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn git_status_helpers_include_conflicts_without_counting_divergence() {
+        let mut gs = GitStatus {
+            ahead: 9,
+            behind: 4,
+            ..GitStatus::default()
+        };
+        assert!(!gs.is_dirty());
+        assert_eq!(gs.total_changes(), 0);
+        gs.conflicts = 2;
+        assert!(gs.is_dirty());
+        assert_eq!(gs.total_changes(), 2);
+        gs.staged = u32::MAX;
+        assert_eq!(gs.total_changes(), u32::MAX);
+        let mut statuses = vec![WorktreeStatus {
+            path: "p".into(),
+            branch: "b".into(),
+            repository: "r".into(),
+            status: WorktreeState::Conflict,
+            git_status: gs,
+            last_activity: "unknown".into(),
+            is_current: false,
+        }];
+        sort_statuses(&mut statuses, "changes");
+    }
 
     #[test]
     fn unresolved_entries_are_not_staged_changes() {
