@@ -441,6 +441,7 @@ pub fn filter_statuses(statuses: Vec<WorktreeStatus>, filter: &str) -> Vec<Workt
             "clean" | "up to date" => s.status == WorktreeState::Clean,
             "stale" | "inactive" => s.status == WorktreeState::Stale,
             "staged" => s.status == WorktreeState::Staged,
+            "unknown" => s.status == WorktreeState::Unknown,
             "conflict" | "conflicted" => s.status == WorktreeState::Conflict,
             _ => {
                 let needle = f.as_str();
