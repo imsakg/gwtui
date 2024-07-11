@@ -454,20 +454,44 @@ pub fn filter_statuses(statuses: Vec<WorktreeStatus>, filter: &str) -> Vec<Workt
 }
 
 pub fn sort_statuses(statuses: &mut [WorktreeStatus], sort_by: &str) {
-    let key = sort_by.to_lowercase();
+    let key = sort_by.trim().to_lowercase();
+    let tie = |a: &WorktreeStatus, b: &WorktreeStatus| {
+        a.branch
+            .cmp(&b.branch)
+            .then_with(|| a.repository.cmp(&b.repository))
+            .then_with(|| a.path.cmp(&b.path))
+    };
     match key.as_str() {
-        "branch" | "name" => statuses.sort_by(|a, b| a.branch.cmp(&b.branch)),
+        "branch" | "name" => statuses.sort_by(tie),
         "status" => {
-            statuses.sort_by(|a, b| status_priority(a.status).cmp(&status_priority(b.status)));
+            statuses.sort_by(|a, b| {
+                status_priority(a.status)
+                    .cmp(&status_priority(b.status))
+                    .then_with(|| tie(a, b))
+            });
         }
         "modified" | "changes" => statuses.sort_by(|a, b| {
             count_total_changes(b.git_status)
                 .cmp(&count_total_changes(a.git_status))
-                .then_with(|| a.branch.cmp(&b.branch))
+                .then_with(|| tie(a, b))
         }),
-        "activity" | "time" => statuses.sort_by(|a, b| b.last_activity.cmp(&a.last_activity)),
-        "ahead" => statuses.sort_by(|a, b| b.git_status.ahead.cmp(&a.git_status.ahead)),
-        "behind" => statuses.sort_by(|a, b| b.git_status.behind.cmp(&a.git_status.behind)),
+        "activity" | "time" => statuses.sort_by(|a, b| {
+            b.last_activity
+                .cmp(&a.last_activity)
+                .then_with(|| tie(a, b))
+        }),
+        "ahead" => statuses.sort_by(|a, b| {
+            b.git_status
+                .ahead
+                .cmp(&a.git_status.ahead)
+                .then_with(|| tie(a, b))
+        }),
+        "behind" => statuses.sort_by(|a, b| {
+            b.git_status
+                .behind
+                .cmp(&a.git_status.behind)
+                .then_with(|| tie(a, b))
+        }),
         _ => {}
     }
 }

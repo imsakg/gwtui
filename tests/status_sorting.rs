@@ -25,3 +25,24 @@ fn unknown_filter_matches_state_not_incidental_branch_names() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].branch, "main");
 }
+
+#[test]
+fn every_sort_mode_has_deterministic_tie_breakers() {
+    let mut a = row("same", WorktreeState::Clean);
+    a.path = "/work/a".into();
+    let mut b = a.clone();
+    b.path = "/work/b".into();
+    let mut c = a.clone();
+    c.repository = "z-repo".into();
+    let mut d = row("z-branch", WorktreeState::Clean);
+    d.path = "/work/0".into();
+    let expected = vec![a, b, c, d];
+    for key in [
+        "branch", " name ", "status", "changes", "modified", "activity", "time", "ahead", "behind",
+    ] {
+        let mut actual = expected.clone();
+        actual.reverse();
+        sort_statuses(&mut actual, key);
+        assert_eq!(actual, expected, "{key}");
+    }
+}
