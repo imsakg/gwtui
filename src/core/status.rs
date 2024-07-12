@@ -476,8 +476,8 @@ pub fn sort_statuses(statuses: &mut [WorktreeStatus], sort_by: &str) {
                 .then_with(|| tie(a, b))
         }),
         "activity" | "time" => statuses.sort_by(|a, b| {
-            b.last_activity
-                .cmp(&a.last_activity)
+            activity_time(&b.last_activity)
+                .cmp(&activity_time(&a.last_activity))
                 .then_with(|| tie(a, b))
         }),
         "ahead" => statuses.sort_by(|a, b| {
@@ -494,6 +494,10 @@ pub fn sort_statuses(statuses: &mut [WorktreeStatus], sort_by: &str) {
         }),
         _ => {}
     }
+}
+
+fn activity_time(value: &str) -> Option<time::OffsetDateTime> {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()
 }
 
 fn status_priority(status: WorktreeState) -> u32 {

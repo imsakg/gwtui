@@ -46,3 +46,22 @@ fn every_sort_mode_has_deterministic_tie_breakers() {
         assert_eq!(actual, expected, "{key}");
     }
 }
+
+#[test]
+fn activity_sort_compares_instants_not_rfc3339_text() {
+    let mut older = row("older", WorktreeState::Clean);
+    older.last_activity = "2025-01-02T00:00:00+03:00".into();
+    let mut newer = row("newer", WorktreeState::Clean);
+    newer.last_activity = "2025-01-01T22:00:00Z".into();
+    let mut newest = row("newest", WorktreeState::Clean);
+    newest.last_activity = "2025-01-01T22:00:00.5Z".into();
+    let unknown = row("unknown", WorktreeState::Unknown);
+    let mut invalid = row("invalid", WorktreeState::Unknown);
+    invalid.last_activity = "zz-invalid".into();
+    let mut rows = vec![older, unknown, newer, invalid, newest];
+    sort_statuses(&mut rows, "activity");
+    assert_eq!(
+        rows.iter().map(|r| r.branch.as_str()).collect::<Vec<_>>(),
+        ["newest", "newer", "older", "invalid", "unknown"]
+    );
+}
