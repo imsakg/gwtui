@@ -123,6 +123,16 @@ impl StatusCollector {
     }
 }
 
+fn is_current_path(current: &Path, worktree: &Path) -> bool {
+    let current = current
+        .canonicalize()
+        .unwrap_or_else(|_| current.to_path_buf());
+    let worktree = worktree
+        .canonicalize()
+        .unwrap_or_else(|_| worktree.to_path_buf());
+    current.starts_with(worktree)
+}
+
 fn collect_one_blocking(
     opts: &StatusCollectorOptions,
     wt: &Worktree,
@@ -138,7 +148,7 @@ fn collect_one_blocking(
         status: WorktreeState::Clean,
         git_status: GitStatus::default(),
         last_activity: "unknown".to_owned(),
-        is_current: current_path.starts_with(&worktree_path),
+        is_current: is_current_path(current_path, &worktree_path),
     };
 
     if let Ok(gs) = collect_git_status(&git, opts.fetch_remote) {
@@ -518,6 +528,19 @@ fn count_total_changes(gs: GitStatus) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn current_path_matching_resolves_aliases_and_respects_boundaries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let real = tmp.path().join("repo");
+        std::fs::create_dir_all(real.join("src")).unwrap();
+        let alias = tmp.path().join("alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+        assert!(is_current_path(&alias.join("src"), &real));
+        assert!(is_current_path(&real.join("src"), &alias));
+        assert!(!is_current_path(&tmp.path().join("repo-other"), &real));
+    }
 
     #[test]
     fn git_status_helpers_include_conflicts_without_counting_divergence() {
