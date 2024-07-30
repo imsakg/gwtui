@@ -33,9 +33,12 @@ pub fn parse_origin_url(url: &str) -> Option<RepoId> {
 }
 
 fn parse_host_path(host: &str, path: &str) -> Option<RepoId> {
-    let mut parts = path.trim_matches('/').split('/');
-    let owner = parts.next()?.to_owned();
-    let repo_raw = parts.next()?.to_owned();
+    let parts: Vec<_> = path.trim_matches('/').split('/').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let owner = parts[..parts.len() - 1].join("/");
+    let repo_raw = parts.last()?.to_string();
     let repo = repo_raw
         .strip_suffix(".git")
         .unwrap_or(&repo_raw)
