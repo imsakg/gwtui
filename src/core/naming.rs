@@ -33,6 +33,9 @@ pub fn parse_origin_url(url: &str) -> Option<RepoId> {
 }
 
 fn parse_host_path(host: &str, path: &str) -> Option<RepoId> {
+    // Credentials and transport ports must never become filesystem components.
+    let host = host.rsplit('@').next()?;
+    let host = host.split_once(':').map_or(host, |(host, _port)| host);
     let parts: Vec<_> = path.trim_matches('/').split('/').collect();
     if parts.len() < 2 {
         return None;

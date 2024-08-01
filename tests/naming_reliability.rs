@@ -16,3 +16,17 @@ fn nested_groups_preserve_namespace_and_final_repository() {
         assert_eq!(id.repo, "service");
     }
 }
+
+#[test]
+fn repository_hosts_exclude_credentials_and_transport_ports() {
+    for url in [
+        "https://alice:secret@git.example:443/team/repo.git",
+        "ssh://deploy@git.example:2222/team/repo.git",
+        "http://git.example:8080/team/repo",
+    ] {
+        let id = parse_origin_url(url).unwrap();
+        assert_eq!(id.host, "git.example", "{url}");
+        assert_eq!(id.repo, "repo");
+        assert!(!format!("{id:?}").contains("secret"));
+    }
+}
