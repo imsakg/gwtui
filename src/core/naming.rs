@@ -35,8 +35,26 @@ pub fn parse_origin_url(url: &str) -> Option<RepoId> {
 fn parse_host_path(host: &str, path: &str) -> Option<RepoId> {
     // Credentials and transport ports must never become filesystem components.
     let host = host.rsplit('@').next()?;
-    let host = host.split_once(':').map_or(host, |(host, _port)| host);
-    let parts: Vec<_> = path.trim_matches('/').split('/').collect();
+    let host = if let Some((host, port)) = host.split_once(':') {
+        if port.parse::<u16>().ok()? == 0 {
+            return None;
+        }
+        host
+    } else {
+        host
+    };
+    if host.is_empty()
+        || matches!(host, "." | "..")
+        || !host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+    {
+        return None;
+    }
+    let parts: Vec<_> = path.trim_end_matches('/').split('/').collect();
+    if parts.iter().any(|part| !safe_remote_segment(part)) {
+        return None;
+    }
     if parts.len() < 2 {
         return None;
     }
@@ -46,11 +64,28 @@ fn parse_host_path(host: &str, path: &str) -> Option<RepoId> {
         .strip_suffix(".git")
         .unwrap_or(&repo_raw)
         .to_owned();
+    if repo.is_empty() || matches!(repo.as_str(), "." | "..") {
+        return None;
+    }
     Some(RepoId {
         host: host.to_owned(),
         owner,
         repo,
     })
+}
+
+fn safe_remote_segment(segment: &str) -> bool {
+    let lower = segment.to_ascii_lowercase();
+    !segment.is_empty()
+        && !matches!(segment, "." | "..")
+        && !segment.chars().any(|c| {
+            c.is_control()
+                || c.is_whitespace()
+                || matches!(c, '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#')
+        })
+        && !["%2e", "%2f", "%5c", "%00"]
+            .iter()
+            .any(|escape| lower.contains(escape))
 }
 
 #[must_use]

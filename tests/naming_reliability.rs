@@ -30,3 +30,28 @@ fn repository_hosts_exclude_credentials_and_transport_ports() {
         assert!(!format!("{id:?}").contains("secret"));
     }
 }
+
+#[test]
+fn malformed_and_traversing_origins_do_not_produce_path_identities() {
+    for url in [
+        "https://host/../repo.git",
+        "https://host/owner/../repo",
+        "https://host//repo",
+        "https://host/owner//repo",
+        "https://host/owner/.git",
+        "https://host/owner/.",
+        "https://host/owner/..",
+        "https://host/owner/repo?token=secret",
+        "https://host/owner/repo#frag",
+        "https://host/owner/repo\\escape",
+        "https://host/owner/%2e%2e/repo",
+        "https://host:bad/owner/repo",
+        "https://host:99999/owner/repo",
+        "https://@/owner/repo",
+        "https://../owner/repo",
+        "https://host/owner/white space",
+        "git@host:/owner/repo",
+    ] {
+        assert!(parse_origin_url(url).is_none(), "{url}");
+    }
+}
