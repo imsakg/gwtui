@@ -55,3 +55,25 @@ fn malformed_and_traversing_origins_do_not_produce_path_identities() {
         assert!(parse_origin_url(url).is_none(), "{url}");
     }
 }
+
+#[test]
+fn supports_git_transport_and_scp_style_deployment_users() {
+    for url in [
+        "git://git.example/team/repo.git",
+        "deploy@git.example:team/repo.git",
+        "git.example:team/repo.git",
+        "builder@git.example:team/sub/repo",
+    ] {
+        let id = parse_origin_url(url).unwrap();
+        assert_eq!(id.host, "git.example");
+        assert_eq!(id.repo, "repo");
+    }
+    for url in [
+        "/local/owner/repo",
+        "../relative/repo",
+        "C:\\work\\repo",
+        "file:///owner/repo",
+    ] {
+        assert!(parse_origin_url(url).is_none(), "{url}");
+    }
+}

@@ -19,13 +19,17 @@ pub fn parse_origin_url(url: &str) -> Option<RepoId> {
     // - git@host:owner/repo(.git)
     let url = url.trim();
 
-    if let Some(rest) = url.strip_prefix("git@") {
-        // git@github.com:owner/repo.git
-        let (host, path) = rest.split_once(':')?;
-        return parse_host_path(host, path);
+    if !url.contains("://") {
+        // SCP style supports SSH aliases and arbitrary deployment usernames.
+        let (authority, path) = url.split_once(':')?;
+        // A one-letter host followed by a backslash is a Windows drive path.
+        if authority.len() == 1 && path.starts_with('\\') {
+            return None;
+        }
+        return parse_host_path(authority, path);
     }
 
-    let re = Regex::new(r"^(?:(?:https?)|ssh)://(?:git@)?([^/]+)/(.+)$").ok()?;
+    let re = Regex::new(r"^(?:(?:https?)|ssh|git)://([^/]+)/(.+)$").ok()?;
     let caps = re.captures(url)?;
     let host = caps.get(1)?.as_str();
     let path = caps.get(2)?.as_str();
