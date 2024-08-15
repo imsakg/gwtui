@@ -77,3 +77,11 @@ fn supports_git_transport_and_scp_style_deployment_users() {
         assert!(parse_origin_url(url).is_none(), "{url}");
     }
 }
+
+#[test]
+fn empty_or_dot_only_branch_names_have_a_safe_fallback() {
+    for name in ["", ".", "..", "...", "---", "/\\", "\0\n"] {
+        assert_eq!(sanitize_for_filesystem(name), "branch", "{name:?}");
+    }
+    assert_eq!(sanitize_for_filesystem(".feature"), ".feature");
+}
