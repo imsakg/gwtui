@@ -85,3 +85,17 @@ fn empty_or_dot_only_branch_names_have_a_safe_fallback() {
     }
     assert_eq!(sanitize_for_filesystem(".feature"), ".feature");
 }
+
+#[test]
+fn filesystem_names_do_not_end_with_windows_ignored_dots_or_spaces() {
+    for (input, expected) in [
+        ("feature...", "feature"),
+        ("feature.  ", "feature"),
+        ("   ", "branch"),
+        (" . ", "branch"),
+        (".feature", ".feature"),
+        ("a.b", "a.b"),
+    ] {
+        assert_eq!(sanitize_for_filesystem(input), expected, "{input:?}");
+    }
+}
