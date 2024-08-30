@@ -144,9 +144,29 @@ pub fn sanitize_for_filesystem(input: &str) -> String {
     let out = out.trim_matches('-').trim_end_matches(['.', ' ']);
     if out.is_empty() || out.chars().all(|c| c == '.') {
         "branch".to_owned()
+    } else if is_windows_device_name(out) {
+        format!("_{out}")
     } else {
         out.to_owned()
     }
+}
+
+fn is_windows_device_name(name: &str) -> bool {
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or(name)
+        .trim_end_matches(' ')
+        .to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ["COM", "LPT"].iter().any(|prefix| {
+            stem.strip_prefix(prefix).is_some_and(|suffix| {
+                matches!(
+                    suffix,
+                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+                )
+            })
+        })
 }
 
 fn short_hash(repo: &str, branch: &str) -> String {

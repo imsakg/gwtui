@@ -99,3 +99,20 @@ fn filesystem_names_do_not_end_with_windows_ignored_dots_or_spaces() {
         assert_eq!(sanitize_for_filesystem(input), expected, "{input:?}");
     }
 }
+
+#[test]
+fn windows_device_names_are_escaped_even_with_extensions() {
+    for input in [
+        "CON", "con.txt", "PRN", "Aux", "nul.log", "COM1", "com9.txt", "LPT1", "lpt9.log", "COM¹",
+        "LPT²",
+    ] {
+        assert_eq!(
+            sanitize_for_filesystem(input),
+            format!("_{input}"),
+            "{input}"
+        );
+    }
+    for ordinary in ["console", "COM0", "COM10", "LPT10", "auxiliary", ".CON"] {
+        assert_eq!(sanitize_for_filesystem(ordinary), ordinary);
+    }
+}
