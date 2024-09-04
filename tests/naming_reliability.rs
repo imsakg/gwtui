@@ -116,3 +116,28 @@ fn windows_device_names_are_escaped_even_with_extensions() {
         assert_eq!(sanitize_for_filesystem(ordinary), ordinary);
     }
 }
+
+#[test]
+fn template_values_are_literal_instead_of_recursively_expanded() {
+    let id = RepoId {
+        host: "{{owner}}".into(),
+        owner: "{{repo}}".into(),
+        repo: "{{branch}}".into(),
+    };
+    assert_eq!(
+        render_template(
+            "{{host}}/{{owner}}/{{repo}}/{{branch}}/{{unknown}}",
+            &id,
+            "{{hash}}"
+        ),
+        "{{owner}}/{{repo}}/{{branch}}/{{hash}}/{{unknown}}"
+    );
+    assert_eq!(
+        render_template(
+            "{{.Host}}/{{.Owner}}/{{.Repository}}/{{.Branch}}",
+            &id,
+            "{{.Hash}}"
+        ),
+        "{{owner}}/{{repo}}/{{branch}}/{{.Hash}}"
+    );
+}

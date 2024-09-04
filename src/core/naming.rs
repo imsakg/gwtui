@@ -96,18 +96,23 @@ fn safe_remote_segment(segment: &str) -> bool {
 pub fn render_template(template: &str, id: &RepoId, branch: &str) -> String {
     let hash = short_hash(&format!("{}/{}/{}", id.host, id.owner, id.repo), branch);
 
-    // Support both gwtui-style and gwq-style tokens.
-    template
-        .replace("{{host}}", &id.host)
-        .replace("{{owner}}", &id.owner)
-        .replace("{{repo}}", &id.repo)
-        .replace("{{branch}}", branch)
-        .replace("{{hash}}", &hash)
-        .replace("{{.Host}}", &id.host)
-        .replace("{{.Owner}}", &id.owner)
-        .replace("{{.Repository}}", &id.repo)
-        .replace("{{.Branch}}", branch)
-        .replace("{{.Hash}}", &hash)
+    // Match original template tokens once; values are never parsed as templates.
+    let re = Regex::new(
+        r"\{\{(?:host|owner|repo|branch|hash|\.Host|\.Owner|\.Repository|\.Branch|\.Hash)\}\}",
+    )
+    .expect("static template token pattern");
+    re.replace_all(template, |caps: &regex::Captures<'_>| {
+        match &caps[0] {
+            "{{host}}" | "{{.Host}}" => id.host.as_str(),
+            "{{owner}}" | "{{.Owner}}" => id.owner.as_str(),
+            "{{repo}}" | "{{.Repository}}" => id.repo.as_str(),
+            "{{branch}}" | "{{.Branch}}" => branch,
+            "{{hash}}" | "{{.Hash}}" => hash.as_str(),
+            _ => unreachable!("static token pattern"),
+        }
+        .to_owned()
+    })
+    .into_owned()
 }
 
 #[must_use]
