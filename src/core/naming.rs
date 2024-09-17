@@ -121,7 +121,9 @@ pub fn sanitize_all(
     sanitize: &std::collections::BTreeMap<String, String>,
 ) -> String {
     for (from, to) in sanitize {
-        s = s.replace(from, to);
+        if !from.is_empty() {
+            s = s.replace(from, to);
+        }
     }
     sanitize_for_filesystem(&s)
 }

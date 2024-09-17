@@ -141,3 +141,11 @@ fn template_values_are_literal_instead_of_recursively_expanded() {
         "{{owner}}/{{repo}}/{{branch}}/{{.Hash}}"
     );
 }
+
+#[test]
+fn empty_sanitizer_keys_do_not_inject_between_every_character() {
+    let mappings =
+        std::collections::BTreeMap::from([("".into(), "oops".into()), ("/".into(), "_".into())]);
+    assert_eq!(sanitize_all("feat/path".into(), &mappings), "feat_path");
+    assert_eq!(sanitize_all(String::new(), &mappings), "branch");
+}
