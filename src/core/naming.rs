@@ -148,7 +148,9 @@ pub fn sanitize_for_filesystem(input: &str) -> String {
     while out.contains("--") {
         out = out.replace("--", "-");
     }
-    let out = out.trim_matches('-').trim_end_matches(['.', ' ']);
+    let out = out
+        .trim_start_matches('-')
+        .trim_end_matches(['.', ' ', '-']);
     if out.is_empty() || out.chars().all(|c| c == '.') {
         "branch".to_owned()
     } else if is_windows_device_name(out) {

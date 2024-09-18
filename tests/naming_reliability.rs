@@ -149,3 +149,54 @@ fn empty_sanitizer_keys_do_not_inject_between_every_character() {
     assert_eq!(sanitize_all("feat/path".into(), &mappings), "feat_path");
     assert_eq!(sanitize_all(String::new(), &mappings), "branch");
 }
+
+#[test]
+fn sanitizer_is_idempotent_for_unicode_and_mixed_trailing_punctuation() {
+    for value in [
+        "foo-.",
+        "foo .-.-",
+        "feat/東京",
+        "café\\branch",
+        "CON...",
+        "..",
+        "💡/draft",
+        "a::b?c",
+        "a\t\nb",
+        ".hidden",
+    ] {
+        let clean = sanitize_for_filesystem(value);
+        assert_eq!(sanitize_for_filesystem(&clean), clean, "{value:?}");
+        assert!(!clean.is_empty());
+        assert!(!clean.ends_with(['.', ' ', '-']));
+        assert!(
+            !clean.chars().any(|c| c.is_control()
+                || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+        );
+    }
+}
+
+#[test]
+fn naming_aliases_and_hashes_are_stable_and_branch_sensitive() {
+    let id = RepoId {
+        host: "example.com".into(),
+        owner: "team".into(),
+        repo: "repo".into(),
+    };
+    let gwtui = render_template(
+        "{{host}}/{{owner}}/{{repo}}/{{branch}}-{{hash}}",
+        &id,
+        "feature/x",
+    );
+    let gwq = render_template(
+        "{{.Host}}/{{.Owner}}/{{.Repository}}/{{.Branch}}-{{.Hash}}",
+        &id,
+        "feature/x",
+    );
+    assert_eq!(gwtui, gwq);
+    assert_eq!(render_template("{{hash}}", &id, "feature/x"), "8ab5c1e9");
+    assert_ne!(
+        render_template("{{hash}}", &id, "feature/x"),
+        render_template("{{hash}}", &id, "feature/y")
+    );
+    assert_eq!(render_template("", &id, "main"), "");
+}
