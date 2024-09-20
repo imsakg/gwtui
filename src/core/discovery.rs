@@ -67,10 +67,12 @@ pub fn filter_global_worktrees<'a>(
 
 fn extract_worktree_info(worktree_path: &Path) -> Option<GlobalWorktreeEntry> {
     let gitfile = worktree_path.join(".git");
-    let raw = std::fs::read_to_string(&gitfile).ok()?;
-    let s = raw.trim();
-    if !s.starts_with("gitdir: ") {
-        return None;
+    let is_main = gitfile.is_dir();
+    if !is_main {
+        let raw = std::fs::read_to_string(&gitfile).ok()?;
+        if !raw.trim().starts_with("gitdir: ") {
+            return None;
+        }
     }
 
     let git = Git::new(worktree_path.to_path_buf());
@@ -92,7 +94,7 @@ fn extract_worktree_info(worktree_path: &Path) -> Option<GlobalWorktreeEntry> {
         branch,
         path: worktree_path.to_string_lossy().to_string(),
         commit_hash,
-        is_main: false,
+        is_main,
     })
 }
 
