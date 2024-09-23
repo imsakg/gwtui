@@ -23,3 +23,20 @@ fn ordinary_main_repositories_are_discovered() {
     assert_eq!(found[0].branch, "main");
     assert_eq!(found[0].commit_hash, repo.git(&["rev-parse", "HEAD"]));
 }
+
+#[test]
+fn repositories_without_origin_keep_main_and_linked_worktrees() {
+    let repo = TestRepo::new();
+    let linked = repo.child("linked");
+    repo.git(&["worktree", "add", "-b", "feature", linked.to_str().unwrap()]);
+    let found = scan(repo.temp.path(), 1);
+    assert_eq!(found.len(), 2);
+    assert_eq!(found.iter().filter(|e| e.is_main).count(), 1);
+    assert!(found.iter().all(|e| e.repository_url.is_empty()));
+    assert!(
+        found
+            .iter()
+            .all(|e| e.repository.as_deref() == Some("repo"))
+    );
+    assert_eq!(filter_global_worktrees(&found, "repo:feature").len(), 1);
+}

@@ -76,8 +76,21 @@ fn extract_worktree_info(worktree_path: &Path) -> Option<GlobalWorktreeEntry> {
     }
 
     let git = Git::new(worktree_path.to_path_buf());
-    let repository_url = git.get_repository_url().ok()?;
-    let repository = parse_origin_url(&repository_url).map(|id| id.repo);
+    let repository_url = git.get_repository_url().unwrap_or_default();
+    let repository = parse_origin_url(&repository_url)
+        .map(|id| id.repo)
+        .or_else(|| {
+            // The common Git directory identifies linked worktrees' local repository.
+            let common = git.run(&["rev-parse", "--git-common-dir"]).ok()?;
+            let common = worktree_path.join(common.trim()).canonicalize().ok()?;
+            let root = if common.file_name().is_some_and(|n| n == ".git") {
+                common.parent()?
+            } else {
+                worktree_path
+            };
+            root.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        });
     let branch = git
         .run(&["rev-parse", "--abbrev-ref", "HEAD"])
         .ok()
