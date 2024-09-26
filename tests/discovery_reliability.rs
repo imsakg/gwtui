@@ -40,3 +40,22 @@ fn repositories_without_origin_keep_main_and_linked_worktrees() {
     );
     assert_eq!(filter_global_worktrees(&found, "repo:feature").len(), 1);
 }
+
+#[test]
+fn invalid_git_markers_are_not_reported_as_worktrees() {
+    let repo = TestRepo::new();
+    for (name, marker) in [
+        ("bad-pointer", "gitdir: /does/not/exist"),
+        ("empty-pointer", "gitdir: "),
+        ("not-git", "some text"),
+    ] {
+        let path = repo.path.join(name);
+        std::fs::create_dir(&path).unwrap();
+        std::fs::write(path.join(".git"), marker).unwrap();
+    }
+    let invalid_dir = repo.path.join("bad-dir/.git");
+    std::fs::create_dir_all(invalid_dir).unwrap();
+    let found = scan(&repo.path, 2);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].is_main);
+}

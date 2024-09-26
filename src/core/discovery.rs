@@ -76,6 +76,11 @@ fn extract_worktree_info(worktree_path: &Path) -> Option<GlobalWorktreeEntry> {
     }
 
     let git = Git::new(worktree_path.to_path_buf());
+    // A marker alone is not proof of a repository. Git must resolve this exact root.
+    let top = git.run(&["rev-parse", "--show-toplevel"]).ok()?;
+    if Path::new(top.trim()).canonicalize().ok()? != worktree_path.canonicalize().ok()? {
+        return None;
+    }
     let repository_url = git.get_repository_url().unwrap_or_default();
     let repository = parse_origin_url(&repository_url)
         .map(|id| id.repo)
