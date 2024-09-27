@@ -59,3 +59,17 @@ fn invalid_git_markers_are_not_reported_as_worktrees() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].is_main);
 }
+
+#[cfg(unix)]
+#[test]
+fn descendant_symlinks_neither_escape_scan_root_nor_repeat_directories() {
+    let repo = TestRepo::new();
+    let scope = repo.child("scope");
+    std::fs::create_dir(&scope).unwrap();
+    std::os::unix::fs::symlink(&repo.path, scope.join("outside")).unwrap();
+    std::os::unix::fs::symlink(&scope, scope.join("loop")).unwrap();
+    assert!(scan(&scope, 4).is_empty());
+    // Explicitly selected symlink roots remain useful and supported.
+    let direct = scan(&scope.join("outside"), 0);
+    assert_eq!(direct.len(), 1);
+}

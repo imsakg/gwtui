@@ -127,7 +127,8 @@ fn walk_dirs(
         if depth > max_depth {
             continue;
         }
-        if !visited.insert(dir.clone()) {
+        let identity = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+        if !visited.insert(identity) {
             continue;
         }
 
@@ -139,7 +140,7 @@ fn walk_dirs(
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() {
+            if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
                 if should_skip_dir(&path) {
                     continue;
                 }
