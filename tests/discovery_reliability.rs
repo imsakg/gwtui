@@ -73,3 +73,23 @@ fn descendant_symlinks_neither_escape_scan_root_nor_repeat_directories() {
     let direct = scan(&scope.join("outside"), 0);
     assert_eq!(direct.len(), 1);
 }
+
+#[test]
+fn discovery_results_are_stably_sorted_by_path() {
+    let repo = TestRepo::new();
+    for name in ["alpha", "beta", "gamma", "zeta"] {
+        repo.git(&[
+            "worktree",
+            "add",
+            "-b",
+            name,
+            repo.child(name).to_str().unwrap(),
+        ]);
+    }
+    let found = scan(repo.temp.path(), 1);
+    let paths: Vec<_> = found.iter().map(|e| &e.path).collect();
+    let mut sorted = paths.clone();
+    sorted.sort();
+    assert_eq!(paths, sorted);
+    assert_eq!(found, scan(repo.temp.path(), 1));
+}

@@ -42,6 +42,7 @@ pub fn discover_global_worktrees(
             out.push(entry);
         }
     });
+    out.sort_by(|a, b| a.path.cmp(&b.path).then_with(|| a.branch.cmp(&b.branch)));
     Ok(out)
 }
 
