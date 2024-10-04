@@ -39,7 +39,11 @@ pub fn discover_global_worktrees(
     let mut visited = BTreeSet::new();
     walk_dirs(&base, scan_depth, &mut visited, &mut |dir| {
         if let Some(entry) = extract_worktree_info(dir) {
+            let prune = !entry.is_main;
             out.push(entry);
+            prune
+        } else {
+            false
         }
     });
     out.sort_by(|a, b| a.path.cmp(&b.path).then_with(|| a.branch.cmp(&b.branch)));
@@ -121,7 +125,7 @@ fn walk_dirs(
     base: &Path,
     max_depth: usize,
     visited: &mut BTreeSet<PathBuf>,
-    on_dir: &mut dyn FnMut(&Path),
+    on_dir: &mut dyn FnMut(&Path) -> bool,
 ) {
     let mut stack: Vec<(PathBuf, usize)> = vec![(base.to_path_buf(), 0)];
     while let Some((dir, depth)) = stack.pop() {
@@ -133,7 +137,9 @@ fn walk_dirs(
             continue;
         }
 
-        on_dir(&dir);
+        if on_dir(&dir) || depth == max_depth {
+            continue;
+        }
 
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;

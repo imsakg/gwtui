@@ -93,3 +93,28 @@ fn discovery_results_are_stably_sorted_by_path() {
     assert_eq!(paths, sorted);
     assert_eq!(found, scan(repo.temp.path(), 1));
 }
+
+#[test]
+fn scans_stop_at_linked_worktrees_but_not_ordinary_main_repositories() {
+    let repo = TestRepo::new();
+    let linked = repo.child("linked");
+    repo.git(&["worktree", "add", "-b", "feature", linked.to_str().unwrap()]);
+    let main_child = repo.path.join("nested-main");
+    std::fs::create_dir(&main_child).unwrap();
+    common::git(&main_child, &["init", "-b", "nested"]);
+    let linked_child = linked.join("nested-linked");
+    std::fs::create_dir(&linked_child).unwrap();
+    common::git(&linked_child, &["init", "-b", "excluded"]);
+    let found = scan(repo.temp.path(), 4);
+    assert_eq!(found.len(), 3, "{found:?}");
+    assert!(
+        found
+            .iter()
+            .any(|e| std::path::Path::new(&e.path) == main_child)
+    );
+    assert!(
+        !found
+            .iter()
+            .any(|e| std::path::Path::new(&e.path) == linked_child)
+    );
+}
