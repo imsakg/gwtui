@@ -1,4 +1,48 @@
 #![forbid(unsafe_code)]
+
+#[test]
+fn unborn_and_detached_repositories_keep_distinct_branch_states() {
+    let repo = TestRepo::new();
+    repo.git(&["checkout", "--detach"]);
+    let unborn = repo.child("unborn");
+    std::fs::create_dir(&unborn).unwrap();
+    common::git(&unborn, &["init", "-b", "new-main"]);
+    let found = scan(repo.temp.path(), 1);
+    let detached = found
+        .iter()
+        .find(|e| std::path::Path::new(&e.path) == repo.path)
+        .unwrap();
+    assert_eq!(detached.branch, "HEAD");
+    assert!(!detached.commit_hash.is_empty());
+    let fresh = found
+        .iter()
+        .find(|e| std::path::Path::new(&e.path) == unborn)
+        .unwrap();
+    assert_eq!(fresh.branch, "new-main");
+    assert!(fresh.commit_hash.is_empty());
+}
+
+#[test]
+fn separate_git_directory_is_still_a_main_checkout() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("checkout");
+    let metadata = tmp.path().join("metadata");
+    common::git(
+        tmp.path(),
+        &[
+            "init",
+            "-b",
+            "main",
+            "--separate-git-dir",
+            metadata.to_str().unwrap(),
+            repo.to_str().unwrap(),
+        ],
+    );
+    let found = scan(&repo, 0);
+    assert_eq!(found.len(), 1);
+    assert!(found[0].is_main);
+}
+
 mod common;
 use common::TestRepo;
 use gwtui::core::discovery::{discover_global_worktrees, filter_global_worktrees};

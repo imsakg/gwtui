@@ -86,6 +86,10 @@ fn extract_worktree_info(worktree_path: &Path) -> Option<GlobalWorktreeEntry> {
     if Path::new(top.trim()).canonicalize().ok()? != worktree_path.canonicalize().ok()? {
         return None;
     }
+    let common_dir = git.run(&["rev-parse", "--git-common-dir"]).ok()?;
+    let git_dir = git.run(&["rev-parse", "--git-dir"]).ok()?;
+    let is_main = worktree_path.join(common_dir.trim()).canonicalize().ok()?
+        == worktree_path.join(git_dir.trim()).canonicalize().ok()?;
     let repository_url = git.get_repository_url().unwrap_or_default();
     let repository = parse_origin_url(&repository_url)
         .map(|id| id.repo)
@@ -102,7 +106,7 @@ fn extract_worktree_info(worktree_path: &Path) -> Option<GlobalWorktreeEntry> {
                 .map(|name| name.to_string_lossy().into_owned())
         });
     let branch = git
-        .run(&["rev-parse", "--abbrev-ref", "HEAD"])
+        .run(&["symbolic-ref", "--quiet", "--short", "HEAD"])
         .ok()
         .map_or_else(|| "HEAD".to_owned(), |s| s.trim().to_owned());
     let commit_hash = git
