@@ -1,6 +1,40 @@
 #![forbid(unsafe_code)]
 
 #[test]
+fn depth_boundaries_hidden_and_generated_directories_are_respected() {
+    let tmp = tempfile::tempdir().unwrap();
+    let visible = tmp.path().join("group/repo");
+    std::fs::create_dir_all(&visible).unwrap();
+    common::git(&visible, &["init", "-b", "main"]);
+    for skip in [
+        ".hidden",
+        "node_modules",
+        "target",
+        ".idea",
+        ".vscode",
+        ".git",
+    ] {
+        let child = tmp.path().join(skip).join("repo");
+        std::fs::create_dir_all(&child).unwrap();
+        common::git(&child, &["init", "-b", "main"]);
+    }
+    assert!(scan(tmp.path(), 0).is_empty());
+    assert!(scan(tmp.path(), 1).is_empty());
+    assert_eq!(scan(tmp.path(), 2).len(), 1);
+    assert_eq!(scan(&visible, 0).len(), 1);
+    assert_eq!(scan(tmp.path(), usize::MAX).len(), 1);
+    assert!(scan(&tmp.path().join("missing"), 2).is_empty());
+    let file = tmp.path().join("plain-file");
+    std::fs::write(&file, "data").unwrap();
+    assert!(scan(&file, 2).is_empty());
+    assert!(discover_global_worktrees(" ", 1).is_err());
+    let found = scan(tmp.path(), 2);
+    assert_eq!(filter_global_worktrees(&found, "").len(), 1);
+    assert_eq!(filter_global_worktrees(&found, "REPO:MAIN").len(), 1);
+    assert!(filter_global_worktrees(&found, "absent").is_empty());
+}
+
+#[test]
 fn unborn_and_detached_repositories_keep_distinct_branch_states() {
     let repo = TestRepo::new();
     repo.git(&["checkout", "--detach"]);
