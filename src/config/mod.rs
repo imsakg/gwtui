@@ -219,10 +219,18 @@ fn home_dir() -> Option<PathBuf> {
 
 #[must_use]
 pub fn expand_tilde(input: &str) -> String {
+    if input == "~"
+        && let Some(home) = home_dir()
+    {
+        return home.to_string_lossy().into_owned();
+    }
     if let Some(rest) = input.strip_prefix("~/")
         && let Some(home) = home_dir()
     {
-        return home.join(rest).to_string_lossy().to_string();
+        return home
+            .join(rest.trim_start_matches('/'))
+            .to_string_lossy()
+            .to_string();
     }
     input.to_owned()
 }
