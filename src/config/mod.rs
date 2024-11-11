@@ -180,6 +180,14 @@ pub struct ConfigPaths {
 }
 
 pub fn default_paths() -> anyhow::Result<ConfigPaths> {
+    if let Some(value) = std::env::var_os("GWTUI_CONFIG") {
+        anyhow::ensure!(!value.is_empty(), "GWTUI_CONFIG must not be empty");
+        let config_file = match value.to_str() {
+            Some(value) => expand_path(value)?,
+            None => PathBuf::from(value),
+        };
+        return Ok(ConfigPaths { config_file });
+    }
     let unix = home_config_path_unix();
     if !cfg!(windows) {
         return Ok(ConfigPaths { config_file: unix });
@@ -198,6 +206,12 @@ pub fn default_paths() -> anyhow::Result<ConfigPaths> {
 }
 
 fn home_config_path_unix() -> PathBuf {
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        let xdg = PathBuf::from(xdg);
+        if xdg.is_absolute() {
+            return xdg.join("gwtui").join("config.toml");
+        }
+    }
     let home = home_dir().unwrap_or_else(|| PathBuf::from("~"));
     home.join(".config").join("gwtui").join("config.toml")
 }
