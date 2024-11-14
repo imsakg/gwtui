@@ -374,9 +374,14 @@ impl Config {
                 "discovery.global_scan_depth must be >= 1".to_owned(),
             ));
         }
-        if self.status.concurrency == 0 {
+        if !(1..=1024).contains(&self.status.concurrency) {
             return Err(GwtuiError::Config(
-                "status.concurrency must be >= 1".to_owned(),
+                "status.concurrency must be between 1 and 1024".to_owned(),
+            ));
+        }
+        if self.status.refresh_interval_ms == 0 {
+            return Err(GwtuiError::Config(
+                "status.refresh_interval_ms must be >= 1".to_owned(),
             ));
         }
         if self.ui.picker_preview_lines == 0 {

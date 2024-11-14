@@ -1,4 +1,22 @@
 #![forbid(unsafe_code)]
+
+#[test]
+fn refresh_and_concurrency_limits_are_validated_before_use() {
+    let mut cfg = Config::default();
+    cfg.status.refresh_interval_ms = 0;
+    assert!(cfg.validate().is_err());
+    cfg.status.refresh_interval_ms = 1;
+    assert!(cfg.validate().is_ok());
+    for concurrency in [0, 1025, usize::MAX] {
+        cfg.status.concurrency = concurrency;
+        assert!(cfg.validate().is_err());
+    }
+    for concurrency in [1, 1024] {
+        cfg.status.concurrency = concurrency;
+        assert!(cfg.validate().is_ok());
+    }
+}
+
 use gwtui::config::{self, Config};
 
 #[test]
