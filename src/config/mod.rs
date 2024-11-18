@@ -394,8 +394,30 @@ impl Config {
                 "tasks.max_parallel must be >= 1".to_owned(),
             ));
         }
+        validate_executable("mux.zellij_command", &self.mux.zellij_command)?;
+        validate_executable("tasks.codex_executable", &self.tasks.codex_executable)?;
+        validate_executable("tasks.claude_executable", &self.tasks.claude_executable)?;
+        if self.worktree.naming_template.trim().is_empty() {
+            return Err(GwtuiError::Config(
+                "worktree.naming_template must not be empty".to_owned(),
+            ));
+        }
+        if self.worktree.sanitize.keys().any(|key| key.is_empty()) {
+            return Err(GwtuiError::Config(
+                "worktree.sanitize source keys must not be empty".to_owned(),
+            ));
+        }
         Ok(())
     }
+}
+
+fn validate_executable(key: &str, value: &str) -> Result<(), GwtuiError> {
+    if value.trim().is_empty() || value.trim() != value || value.contains(['\0', '\n', '\r']) {
+        return Err(GwtuiError::Config(format!(
+            "{key} must be an executable name or path, without surrounding whitespace or control separators"
+        )));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
