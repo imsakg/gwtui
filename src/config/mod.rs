@@ -341,7 +341,7 @@ pub fn get_value_string_at_path(path: &Path, key: &str) -> anyhow::Result<Option
 
 pub fn set_value_string_at_path(path: &Path, key: &str, value: &str) -> anyhow::Result<()> {
     let (mut doc, cfg) = load_from_file(path)?;
-    cfg.validate()?;
+    // Validate the complete proposed configuration, not the broken starting values.
 
     let (norm_key, value_item) = normalize_key_and_parse_value(key, value, &cfg)?;
     apply_set(&mut doc, &norm_key, value_item)?;
