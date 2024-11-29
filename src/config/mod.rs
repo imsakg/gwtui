@@ -468,6 +468,11 @@ enum KeyType {
 }
 
 fn normalize_key(key: &str) -> String {
+    for prefix in ["naming.sanitize_chars.", "worktree.sanitize_chars."] {
+        if let Some(suffix) = key.strip_prefix(prefix) {
+            return format!("worktree.sanitize.{suffix}");
+        }
+    }
     // gwq compatibility aliases
     match key {
         "worktree.basedir" => "worktree.base_dir",
@@ -609,21 +614,24 @@ fn apply_set(
     key: &str,
     value: toml_edit::Item,
 ) -> anyhow::Result<()> {
-    let parts: Vec<&str> = key.split('.').filter(|p| !p.is_empty()).collect();
+    let parts = key_segments(key);
     if parts.is_empty() {
         return Err(GwtuiError::InvalidConfigKey(key.to_owned()).into());
     }
 
-    let mut cur = doc.as_table_mut();
+    let mut cur: &mut dyn toml_edit::TableLike = doc.as_table_mut();
     for seg in &parts[..parts.len().saturating_sub(1)] {
         if !cur.contains_key(seg) {
             let mut t = toml_edit::Table::new();
             t.set_implicit(true);
             cur.insert(seg, toml_edit::Item::Table(t));
         }
-        cur = cur[seg].as_table_mut().ok_or_else(|| {
-            GwtuiError::Config(format!("cannot set {key}: '{seg}' is not a table"))
-        })?;
+        cur = cur
+            .get_mut(seg)
+            .and_then(toml_edit::Item::as_table_like_mut)
+            .ok_or_else(|| {
+                GwtuiError::Config(format!("cannot set {key}: '{seg}' is not a table"))
+            })?;
     }
 
     let leaf = parts[parts.len() - 1];
@@ -631,9 +639,17 @@ fn apply_set(
     Ok(())
 }
 
+fn key_segments(key: &str) -> Vec<&str> {
+    if let Some(suffix) = key.strip_prefix("worktree.sanitize.") {
+        vec!["worktree", "sanitize", suffix]
+    } else {
+        key.split('.').collect()
+    }
+}
+
 fn lookup_value(cfg: &Config, key: &str) -> Option<serde_json::Value> {
     let mut v = serde_json::to_value(cfg).ok()?;
-    for seg in key.split('.').filter(|s| !s.is_empty()) {
+    for seg in key_segments(key) {
         match v {
             serde_json::Value::Object(mut map) => {
                 v = map.remove(seg)?;

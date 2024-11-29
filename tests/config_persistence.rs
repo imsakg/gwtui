@@ -1,6 +1,60 @@
 #![forbid(unsafe_code)]
 
 #[test]
+fn sanitizer_map_suffixes_are_literal_including_dots_and_aliases() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("config.toml");
+    for (key, value) in [
+        ("worktree.sanitize..", "dot"),
+        ("worktree.sanitize.a.b", "dash"),
+        ("naming.sanitize_chars.:", "colon"),
+        ("worktree.sanitize_chars./", "slash"),
+    ] {
+        set_value_string_at_path(&path, key, value).unwrap();
+        assert_eq!(
+            get_value_string_at_path(&path, key).unwrap().as_deref(),
+            Some(value),
+            "{key}"
+        );
+    }
+    assert_eq!(
+        get_value_string_at_path(&path, "worktree.sanitize.:")
+            .unwrap()
+            .as_deref(),
+        Some("colon")
+    );
+    let before = std::fs::read(&path).unwrap();
+    assert!(set_value_string_at_path(&path, "worktree.sanitize.", "bad").is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+}
+
+#[test]
+fn existing_inline_tables_can_be_updated_without_losing_unrelated_values() {
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("config.toml");
+    std::fs::write(&path, "# inline config\nui = { icons = true, tilde_home = false }\n[worktree]\nsanitize = { '/' = '-', '.' = '_' }\n").unwrap();
+    set_value_string_at_path(&path, "worktree.sanitize..", "dot").unwrap();
+    set_value_string_at_path(&path, "ui.icons", "false").unwrap();
+    assert_eq!(
+        get_value_string_at_path(&path, "ui.tilde_home")
+            .unwrap()
+            .as_deref(),
+        Some("false")
+    );
+    assert_eq!(
+        get_value_string_at_path(&path, "worktree.sanitize./")
+            .unwrap()
+            .as_deref(),
+        Some("-")
+    );
+    assert!(
+        std::fs::read_to_string(&path)
+            .unwrap()
+            .contains("# inline config")
+    );
+}
+
+#[test]
 fn config_set_can_repair_invalid_but_deserializable_configuration() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("config.toml");
