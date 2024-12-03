@@ -278,10 +278,14 @@ pub fn expand_path(input: &str) -> anyhow::Result<PathBuf> {
 
 fn expand_env_vars(input: &str) -> String {
     // Expand $VAR and ${VAR}. Leave unknown vars untouched.
-    let re = regex::Regex::new(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
-        .unwrap_or_else(|_| regex::Regex::new("$^").unwrap());
+    let re = regex::Regex::new(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+        .expect("static environment variable pattern");
     re.replace_all(input, |caps: &regex::Captures<'_>| {
-        let key = &caps[1];
+        let key = caps
+            .get(1)
+            .or_else(|| caps.get(2))
+            .expect("variable capture")
+            .as_str();
         std::env::var(key).unwrap_or_else(|_| caps[0].to_owned())
     })
     .to_string()
@@ -664,6 +668,25 @@ fn lookup_value(cfg: &Config, key: &str) -> Option<serde_json::Value> {
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn environment_expansion_requires_complete_braced_variables() {
+        let home = std::env::var("HOME").unwrap();
+        assert_eq!(expand_env_vars("$HOME/path"), format!("{home}/path"));
+        assert_eq!(expand_env_vars("${HOME}/path"), format!("{home}/path"));
+        for literal in [
+            "${HOME",
+            "${HOME:-fallback}",
+            "${HOME!}",
+            "${}",
+            "$9",
+            "${GWTUI_UNSET_TEST_7B5A}",
+            "$GWTUI_UNSET_TEST_7B5A",
+        ] {
+            assert_eq!(expand_env_vars(literal), literal, "{literal}");
+        }
+        assert_eq!(expand_env_vars("${HOME}x"), format!("{home}x"));
+    }
 
     #[test]
     fn default_config_is_valid() {
