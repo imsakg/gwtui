@@ -175,3 +175,122 @@ cargo test
 The integration tests use temporary real Git repositories, local upstream refs
 and isolated subprocess environments. They do not depend on network remotes or
 modify the test process's environment with unsafe Rust 2024 APIs.
+
+## Configuration selection
+
+`config list`, `config get`, `config set` and ordinary commands share the same
+configuration-path resolver:
+
+1. A present `GWTUI_CONFIG` selects that exact file. An empty value is an error,
+   not permission to silently fall back. Relative paths resolve against the
+   command's current directory; tilde and supported environment references are
+   expanded. Non-UTF-8 override paths are retained as OS paths without expansion.
+2. On macOS/Linux, an absolute `XDG_CONFIG_HOME` selects
+   `$XDG_CONFIG_HOME/gwtui/config.toml`. Empty or relative XDG values are ignored.
+3. Otherwise macOS/Linux use `~/.config/gwtui/config.toml`.
+4. Windows retains its portability rule: use the Unix-style candidate if it
+   already exists, otherwise the platform configuration directory. An explicit
+   `GWTUI_CONFIG` still wins.
+
+An absent selected file supplies defaults in memory. Reading/listing does not
+create it. An unreadable or malformed existing file is an error rather than a
+reason to use another configuration. Unknown TOML fields retain their existing
+Serde behavior; this change does not introduce deny-unknown-field parsing.
+
+Path expansion handles `~` and `~/...`, not `~other/...`. Repeated separators
+immediately after `~/` cannot discard the home prefix. `$NAME` and `${NAME}`
+expand known environment variables; missing variables and malformed braced
+forms remain literal. Shell parameter operators such as `${NAME:-fallback}`
+are not evaluated. Expansion is not shell execution and does not recurse
+through variable values. A filesystem path can still contain intentional
+parent components; these helpers are not a containment sandbox.
+
+### Validated values
+
+Configuration validation requires:
+
+- A nonblank `worktree.base_dir` and `worktree.naming_template`.
+- `discovery.global_scan_depth >= 1`.
+- `status.refresh_interval_ms >= 1` and `status.concurrency` in `1..=1024`.
+- `ui.picker_preview_lines >= 1` and `tasks.max_parallel >= 1`.
+- Nonempty sanitizer source keys. Replacement values may be empty.
+- Nonblank `mux.zellij_command`, `tasks.codex_executable` and
+  `tasks.claude_executable`, without surrounding whitespace, NUL, CR or LF.
+  Internal spaces are permitted in executable paths. Validation does not check
+  executable availability, split command-line arguments or execute programs.
+
+Executable validation applies even to configured backends/runners that are not
+currently selected. Existing files with newly invalid settings need repair.
+`config set` may repair a deserializable invalid configuration, provided the
+**entire resulting configuration** is valid. It cannot repair malformed TOML
+or a value whose type prevents deserialization. Other invalid settings must be
+corrected together by editing the file if a single-key update cannot yield a
+valid result.
+
+### Literal sanitizer keys and aliases
+
+Everything after `worktree.sanitize.` is one literal source-map key, including
+any dots. This avoids interpreting a dot as another configuration table:
+
+```sh
+gwtui config set 'worktree.sanitize..' '_'
+gwtui config get 'worktree.sanitize..'
+gwtui config set 'worktree.sanitize.a.b' '-'
+```
+
+Dynamic `naming.sanitize_chars.<from>` and
+`worktree.sanitize_chars.<from>` aliases resolve to the same map. The existing
+`worktree.basedir`, `naming.template`, `finder.preview`, task executable aliases
+and `tmux.enabled` compatibility mappings remain supported. Set individual
+sanitizer entries rather than replacing the whole map through `config set`.
+Updates support ordinary and inline TOML tables without discarding unrelated
+values or the existing file's leading comments.
+
+### Atomic persistence and its limits
+
+A successful update is parsed and validated **before any write**. Persistence
+creates an exclusive, randomly named sibling temporary file, writes the full
+validated TOML, syncs the file and renames it over the target. On Unix, new
+configuration files use mode `0600`; replacements preserve the existing mode.
+An existing configuration symlink remains a symlink and its resolved target is
+updated. Dangling symlinks fail instead of being silently replaced.
+
+This provides complete old-or-new contents to readers on ordinary local
+filesystems, including readers holding an already open old file descriptor.
+Invalid keys/values leave existing bytes untouched and do not create missing
+parent directories. Temporary files are cleaned up after handled write errors.
+
+This is **not** a multi-writer transaction: concurrent updates are last-writer
+wins and may lose independent edits. There is no file lock, directory fsync,
+symlink-race defense, network-filesystem guarantee, or promise to preserve
+ownership, ACLs, extended attributes or hard-link relationships. Abrupt process
+termination may leave an unused sibling temporary file. Unix mode and symlink
+regressions are platform-gated; they do not establish Windows behavior.
+
+### Isolated configuration example
+
+Choose a disposable configuration explicitly, so these commands cannot modify
+an existing personal configuration:
+
+```sh
+export GWTUI_CONFIG="$PWD/demo-settings/config.toml"
+gwtui config set ui.icons false
+gwtui config set status.refresh_interval_ms 1000
+gwtui config set status.concurrency 4
+gwtui config set worktree.basedir '~/worktrees'
+gwtui config set 'naming.sanitize_chars..' '_'
+gwtui config get ui.icons                  # false
+gwtui config get status.concurrency        # 4
+gwtui config get 'worktree.sanitize..'      # _
+gwtui config list
+```
+
+Regression suites cover path selection through subprocess-specific environments,
+validation boundaries, invalid-update byte preservation, repair of invalid
+settings, literal/aliased map keys, inline tables, atomic reader snapshots,
+parallel writers, Unix permissions and existing symlinks:
+
+```sh
+cargo test --lib config::tests
+cargo test --test config_paths --test config_reliability --test config_persistence
+```
