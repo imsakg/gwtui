@@ -56,7 +56,14 @@ impl Git {
     }
 
     pub fn list_worktrees_porcelain(&self) -> Result<String, GwtuiError> {
-        self.run(&["worktree", "list", "--porcelain", "-z"])
+        let out = self.run_raw(&["worktree", "list", "--porcelain", "-z"])?;
+        if !out.status.success() {
+            return Err(GwtuiError::Other(format!(
+                "git worktree list: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            )));
+        }
+        decode_worktree_porcelain(out.stdout)
     }
 
     pub fn add_worktree(
@@ -394,6 +401,25 @@ impl Git {
             });
         }
         Ok(commits)
+    }
+}
+
+fn decode_worktree_porcelain(bytes: Vec<u8>) -> Result<String, GwtuiError> {
+    String::from_utf8(bytes).map_err(|_| {
+        GwtuiError::Other(
+            "worktree paths are not valid UTF-8; use git directly for this repository".to_owned(),
+        )
+    })
+}
+
+#[cfg(test)]
+mod metadata_encoding_tests {
+    use super::*;
+
+    #[test]
+    fn worktree_metadata_rejects_invalid_utf8() {
+        let error = decode_worktree_porcelain(b"worktree /invalid-\xff\0\0".to_vec()).unwrap_err();
+        assert!(error.to_string().contains("UTF-8"));
     }
 }
 
