@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod lifecycle;
+
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::path::Path;
@@ -47,6 +49,8 @@ pub enum Commands {
     Remove(RemoveArgs),
     Status(StatusArgs),
     Prune,
+    /// Protect a linked worktree from pruning
+    Lock(lifecycle::LockArgs),
     Config(ConfigArgs),
     Completion(CompletionArgs),
     Tmux(MuxArgs),
@@ -448,6 +452,7 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Exec(args)) => cmd_exec(args, &raw_args).await,
         Some(Commands::Remove(args)) => cmd_remove(args).await,
         Some(Commands::Prune) => cmd_prune().await,
+        Some(Commands::Lock(args)) => lifecycle::lock(args).await,
         Some(Commands::Status(args)) => cmd_status(args).await,
         Some(Commands::Tmux(args) | Commands::Zellij(args)) => cmd_tmux(args).await,
         Some(Commands::Task(args)) => cmd_task(args).await,
