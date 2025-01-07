@@ -51,6 +51,8 @@ pub enum Commands {
     Prune,
     /// Protect a linked worktree from pruning
     Lock(lifecycle::LockArgs),
+    /// Release a worktree lock
+    Unlock(lifecycle::SelectorArgs),
     Config(ConfigArgs),
     Completion(CompletionArgs),
     Tmux(MuxArgs),
@@ -453,6 +455,7 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Remove(args)) => cmd_remove(args).await,
         Some(Commands::Prune) => cmd_prune().await,
         Some(Commands::Lock(args)) => lifecycle::lock(args).await,
+        Some(Commands::Unlock(args)) => lifecycle::unlock(args).await,
         Some(Commands::Status(args)) => cmd_status(args).await,
         Some(Commands::Tmux(args) | Commands::Zellij(args)) => cmd_tmux(args).await,
         Some(Commands::Task(args)) => cmd_task(args).await,

@@ -20,3 +20,17 @@ pub async fn lock(args: LockArgs) -> anyhow::Result<ExitCode> {
     println!("Locked {}", worktree.path);
     Ok(ExitCode::SUCCESS)
 }
+
+#[derive(Debug, Parser)]
+pub struct SelectorArgs {
+    /// Exact branch/path or unambiguous substring
+    pub pattern: String,
+}
+
+pub async fn unlock(args: SelectorArgs) -> anyhow::Result<ExitCode> {
+    let manager = WorktreeManager::new(Git::from_cwd()?, super::load_cfg().await?);
+    let worktree = manager.resolve(&args.pattern)?;
+    manager.unlock(std::path::Path::new(&worktree.path))?;
+    println!("Unlocked {}", worktree.path);
+    Ok(ExitCode::SUCCESS)
+}

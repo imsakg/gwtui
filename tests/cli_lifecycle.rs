@@ -22,3 +22,17 @@ fn lock_command_keeps_a_literal_reason() {
             .contains("locked offline backup | keep")
     );
 }
+
+#[test]
+fn unlock_command_releases_protection() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    repo.git(&["worktree", "lock", path.to_str().unwrap()]);
+    success(repo.cli(&["unlock", "feature"]));
+    assert!(
+        !repo
+            .git(&["worktree", "list", "--porcelain"])
+            .contains("locked")
+    );
+}
