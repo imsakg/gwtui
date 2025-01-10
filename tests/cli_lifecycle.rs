@@ -36,3 +36,18 @@ fn unlock_command_releases_protection() {
             .contains("locked")
     );
 }
+
+#[test]
+fn move_command_updates_git_registration() {
+    let repo = TestRepo::new();
+    let old = repo.child("feature");
+    let new = repo.child("moved feature");
+    repo.git(&["worktree", "add", "-b", "feature", old.to_str().unwrap()]);
+    success(repo.cli(&["move", "feature", new.to_str().unwrap()]));
+    assert!(!old.exists());
+    assert!(new.join(".git").exists());
+    assert!(
+        repo.git(&["worktree", "list", "--porcelain"])
+            .contains(new.to_str().unwrap())
+    );
+}

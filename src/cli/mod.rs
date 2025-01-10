@@ -53,6 +53,9 @@ pub enum Commands {
     Lock(lifecycle::LockArgs),
     /// Release a worktree lock
     Unlock(lifecycle::SelectorArgs),
+    /// Move a linked worktree and update Git metadata
+    #[command(alias = "mv")]
+    Move(lifecycle::MoveArgs),
     Config(ConfigArgs),
     Completion(CompletionArgs),
     Tmux(MuxArgs),
@@ -456,6 +459,7 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Prune) => cmd_prune().await,
         Some(Commands::Lock(args)) => lifecycle::lock(args).await,
         Some(Commands::Unlock(args)) => lifecycle::unlock(args).await,
+        Some(Commands::Move(args)) => lifecycle::move_worktree(args).await,
         Some(Commands::Status(args)) => cmd_status(args).await,
         Some(Commands::Tmux(args) | Commands::Zellij(args)) => cmd_tmux(args).await,
         Some(Commands::Task(args)) => cmd_task(args).await,
