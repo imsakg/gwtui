@@ -48,3 +48,16 @@ pub async fn move_worktree(args: MoveArgs) -> anyhow::Result<ExitCode> {
     println!("Moved {} to {}", worktree.path, args.destination.display());
     Ok(ExitCode::SUCCESS)
 }
+
+#[derive(Debug, Parser)]
+pub struct RepairArgs {
+    /// Moved worktree paths; omit to repair all known registrations
+    pub paths: Vec<std::path::PathBuf>,
+}
+
+pub async fn repair(args: RepairArgs) -> anyhow::Result<ExitCode> {
+    let manager = WorktreeManager::new(Git::from_cwd()?, super::load_cfg().await?);
+    manager.repair(&args.paths)?;
+    println!("Repaired worktree registrations");
+    Ok(ExitCode::SUCCESS)
+}

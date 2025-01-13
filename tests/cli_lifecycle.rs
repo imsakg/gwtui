@@ -51,3 +51,17 @@ fn move_command_updates_git_registration() {
             .contains(new.to_str().unwrap())
     );
 }
+
+#[test]
+fn repair_command_reconnects_an_externally_moved_checkout() {
+    let repo = TestRepo::new();
+    let old = repo.child("feature");
+    let new = repo.child("repaired");
+    repo.git(&["worktree", "add", "-b", "feature", old.to_str().unwrap()]);
+    std::fs::rename(&old, &new).unwrap();
+    success(repo.cli(&["repair", new.to_str().unwrap()]));
+    assert!(
+        repo.git(&["worktree", "list", "--porcelain"])
+            .contains(new.to_str().unwrap())
+    );
+}
