@@ -65,3 +65,22 @@ fn repair_command_reconnects_an_externally_moved_checkout() {
             .contains(new.to_str().unwrap())
     );
 }
+
+#[test]
+fn prune_dry_run_does_not_remove_registration() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    std::fs::remove_dir_all(&path).unwrap();
+    success(repo.cli(&["prune", "--dry-run", "--expire", "now"]));
+    assert!(
+        repo.git(&["worktree", "list", "--porcelain"])
+            .contains("feature")
+    );
+    success(repo.cli(&["prune", "--expire", "now"]));
+    assert!(
+        !repo
+            .git(&["worktree", "list", "--porcelain"])
+            .contains("branch refs/heads/feature")
+    );
+}

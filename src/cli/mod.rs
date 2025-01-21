@@ -48,7 +48,7 @@ pub enum Commands {
     #[command(alias = "rm")]
     Remove(RemoveArgs),
     Status(StatusArgs),
-    Prune,
+    Prune(lifecycle::PruneArgs),
     /// Protect a linked worktree from pruning
     Lock(lifecycle::LockArgs),
     /// Release a worktree lock
@@ -458,7 +458,7 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Get(args)) => cmd_get(args).await,
         Some(Commands::Exec(args)) => cmd_exec(args, &raw_args).await,
         Some(Commands::Remove(args)) => cmd_remove(args).await,
-        Some(Commands::Prune) => cmd_prune().await,
+        Some(Commands::Prune(args)) => lifecycle::prune(args).await,
         Some(Commands::Lock(args)) => lifecycle::lock(args).await,
         Some(Commands::Unlock(args)) => lifecycle::unlock(args).await,
         Some(Commands::Move(args)) => lifecycle::move_worktree(args).await,
@@ -709,15 +709,6 @@ async fn cmd_remove(args: RemoveArgs) -> anyhow::Result<ExitCode> {
         Err(_) => remove_global(&cfg, &args)?,
     }
 
-    Ok(ExitCode::SUCCESS)
-}
-
-async fn cmd_prune() -> anyhow::Result<ExitCode> {
-    let cfg = load_cfg().await?;
-    let git = Git::from_cwd()?;
-    let wm = WorktreeManager::new(git, cfg);
-    wm.prune()?;
-    println!("Pruned stale worktree information");
     Ok(ExitCode::SUCCESS)
 }
 

@@ -61,3 +61,22 @@ pub async fn repair(args: RepairArgs) -> anyhow::Result<ExitCode> {
     println!("Repaired worktree registrations");
     Ok(ExitCode::SUCCESS)
 }
+
+#[derive(Debug, Parser)]
+pub struct PruneArgs {
+    /// Preview stale registrations without deleting metadata
+    #[arg(short = 'n', long)]
+    pub dry_run: bool,
+    /// Git expiry expression, e.g. now or 2.weeks.ago
+    #[arg(long)]
+    pub expire: Option<String>,
+}
+
+pub async fn prune(args: PruneArgs) -> anyhow::Result<ExitCode> {
+    let manager = WorktreeManager::new(Git::from_cwd()?, super::load_cfg().await?);
+    print!(
+        "{}",
+        manager.prune_with_options(args.dry_run, args.expire.as_deref())?
+    );
+    Ok(ExitCode::SUCCESS)
+}
