@@ -77,6 +77,9 @@ pub struct AddArgs {
     /// Overwrite existing directory
     #[arg(short = 'f', long = "force")]
     pub force: bool,
+    /// Start a new branch at this commit (requires -b)
+    #[arg(long, requires = "branch")]
+    pub base: Option<String>,
     /// Branch name
     pub branch_name: Option<String>,
     /// Optional path
@@ -582,7 +585,11 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
         wm.validate_worktree_path(path)?;
     }
 
-    wm.add(&branch, custom_path.as_deref(), create_branch)?;
+    if let Some(base) = args.base.as_deref() {
+        wm.add_from_base(&branch, Some(base), custom_path.as_deref())?;
+    } else {
+        wm.add(&branch, custom_path.as_deref(), create_branch)?;
+    }
     println!("Created worktree for branch '{branch}'");
     Ok(ExitCode::SUCCESS)
 }

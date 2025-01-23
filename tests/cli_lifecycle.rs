@@ -84,3 +84,20 @@ fn prune_dry_run_does_not_remove_registration() {
             .contains("branch refs/heads/feature")
     );
 }
+
+#[test]
+fn add_can_start_a_branch_from_an_explicit_revision() {
+    let repo = TestRepo::new();
+    let initial = repo.git(&["rev-parse", "HEAD"]);
+    repo.git(&["commit", "--allow-empty", "-m", "next"]);
+    let path = repo.child("feature");
+    success(repo.cli(&[
+        "add",
+        "-b",
+        "feature",
+        path.to_str().unwrap(),
+        "--base",
+        &initial,
+    ]));
+    assert_eq!(repo.git(&["rev-parse", "feature"]), initial);
+}
