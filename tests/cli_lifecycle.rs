@@ -101,3 +101,21 @@ fn add_can_start_a_branch_from_an_explicit_revision() {
     ]));
     assert_eq!(repo.git(&["rev-parse", "feature"]), initial);
 }
+
+#[test]
+fn add_detached_accepts_an_optional_revision_without_creating_branch() {
+    let repo = TestRepo::new();
+    let initial = repo.git(&["rev-parse", "HEAD"]);
+    repo.git(&["commit", "--allow-empty", "-m", "next"]);
+    let path = repo.child("detached");
+    success(repo.cli(&[
+        "add",
+        "--detach",
+        path.to_str().unwrap(),
+        "--revision",
+        &initial,
+    ]));
+    assert_eq!(common::git(&path, &["rev-parse", "HEAD"]), initial);
+    assert_eq!(common::git(&path, &["branch", "--show-current"]), "");
+    assert_eq!(repo.git(&["branch", "--format=%(refname:short)"]), "main");
+}

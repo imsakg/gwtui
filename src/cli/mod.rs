@@ -68,6 +68,12 @@ pub enum Commands {
 
 #[derive(Debug, Parser)]
 pub struct AddArgs {
+    /// Create a detached checkout; the positional argument is its path
+    #[arg(long, conflicts_with_all = ["branch", "base", "interactive"])]
+    pub detach: bool,
+    /// Commit to check out with --detach (defaults to HEAD)
+    #[arg(long, requires = "detach")]
+    pub revision: Option<String>,
     /// Create new branch
     #[arg(short = 'b', long = "branch")]
     pub branch: bool,
@@ -516,6 +522,18 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
     let git = Git::from_cwd()?;
     let wm = WorktreeManager::new(git.clone(), cfg.clone());
 
+    if args.detach {
+        if args.path.is_some() {
+            anyhow::bail!("--detach accepts one path; use --revision for the commit");
+        }
+        let path = args
+            .branch_name
+            .context("--detach requires a destination path")?;
+        let path = config::expand_path(&path)?;
+        wm.add_detached(&path, args.revision.as_deref())?;
+        println!("Created detached worktree at {}", path.display());
+        return Ok(ExitCode::SUCCESS);
+    }
     let mut create_branch = args.branch;
     let (branch, custom_path) = if args.interactive {
         if args.branch_name.is_some() || args.path.is_some() {
