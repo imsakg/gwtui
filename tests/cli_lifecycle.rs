@@ -119,3 +119,20 @@ fn add_detached_accepts_an_optional_revision_without_creating_branch() {
     assert_eq!(common::git(&path, &["branch", "--show-current"]), "");
     assert_eq!(repo.git(&["branch", "--format=%(refname:short)"]), "main");
 }
+
+#[test]
+fn add_print_path_is_suitable_for_command_substitution() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature with spaces");
+    let out = success(repo.cli(&[
+        "add",
+        "-b",
+        "feature",
+        path.to_str().unwrap(),
+        "--print-path",
+    ]));
+    assert_eq!(
+        out.trim_end(),
+        path.canonicalize().unwrap().to_str().unwrap()
+    );
+}

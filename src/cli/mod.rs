@@ -68,6 +68,9 @@ pub enum Commands {
 
 #[derive(Debug, Parser)]
 pub struct AddArgs {
+    /// Print only the created path, for shell command substitution
+    #[arg(long)]
+    pub print_path: bool,
     /// Create a detached checkout; the positional argument is its path
     #[arg(long, conflicts_with_all = ["branch", "base", "interactive"])]
     pub detach: bool,
@@ -531,7 +534,11 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
             .context("--detach requires a destination path")?;
         let path = config::expand_path(&path)?;
         wm.add_detached(&path, args.revision.as_deref())?;
-        println!("Created detached worktree at {}", path.display());
+        if args.print_path {
+            println!("{}", path.display());
+        } else {
+            println!("Created detached worktree at {}", path.display());
+        }
         return Ok(ExitCode::SUCCESS);
     }
     let mut create_branch = args.branch;
@@ -608,7 +615,11 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
     } else {
         wm.add(&branch, custom_path.as_deref(), create_branch)?;
     }
-    println!("Created worktree for branch '{branch}'");
+    if args.print_path {
+        println!("{}", wm.resolve(&branch)?.path);
+    } else {
+        println!("Created worktree for branch '{branch}'");
+    }
     Ok(ExitCode::SUCCESS)
 }
 
