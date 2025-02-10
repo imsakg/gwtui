@@ -97,6 +97,9 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
+    /// Print one worktree path per line
+    #[arg(long, conflicts_with = "json")]
+    pub paths: bool,
     /// Show detailed information
     #[arg(short = 'v', long = "verbose")]
     pub verbose: bool,
@@ -644,6 +647,12 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
+    if args.paths {
+        for worktree in &worktrees {
+            println!("{}", worktree.path);
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
     print_worktree_table(&cfg, &worktrees, args.verbose)?;
     Ok(ExitCode::SUCCESS)
 }

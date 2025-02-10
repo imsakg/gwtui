@@ -136,3 +136,13 @@ fn add_print_path_is_suitable_for_command_substitution() {
         path.canonicalize().unwrap().to_str().unwrap()
     );
 }
+
+#[test]
+fn list_paths_omits_headers_and_branch_names() {
+    let repo = TestRepo::new();
+    let out = success(repo.cli(&["list", "--paths"]));
+    assert_eq!(
+        out.trim_end(),
+        repo.path.canonicalize().unwrap().to_str().unwrap()
+    );
+}
