@@ -146,3 +146,14 @@ fn list_paths_omits_headers_and_branch_names() {
         repo.path.canonicalize().unwrap().to_str().unwrap()
     );
 }
+
+#[test]
+fn list_null_preserves_embedded_newlines_in_paths() {
+    let repo = TestRepo::new();
+    let path = repo.child("line\nbreak");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    let out = success(repo.cli(&["list", "--paths", "--null"]));
+    let paths: Vec<_> = out.split('\0').filter(|p| !p.is_empty()).collect();
+    assert_eq!(paths.len(), 2);
+    assert!(paths.contains(&path.canonicalize().unwrap().to_str().unwrap()));
+}

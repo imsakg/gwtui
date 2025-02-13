@@ -97,6 +97,9 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
+    /// Terminate --paths records with NUL instead of newline
+    #[arg(short = '0', long = "null", requires = "paths")]
+    pub null_terminate: bool,
     /// Print one worktree path per line
     #[arg(long, conflicts_with = "json")]
     pub paths: bool,
@@ -648,8 +651,11 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
     }
 
     if args.paths {
+        use std::io::Write as _;
+        let mut stdout = std::io::stdout().lock();
         for worktree in &worktrees {
-            println!("{}", worktree.path);
+            stdout.write_all(worktree.path.as_bytes())?;
+            stdout.write_all(if args.null_terminate { b"\0" } else { b"\n" })?;
         }
         return Ok(ExitCode::SUCCESS);
     }
