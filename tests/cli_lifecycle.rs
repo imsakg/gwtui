@@ -157,3 +157,20 @@ fn list_null_preserves_embedded_newlines_in_paths() {
     assert_eq!(paths.len(), 2);
     assert!(paths.contains(&path.canonicalize().unwrap().to_str().unwrap()));
 }
+
+#[test]
+fn list_filter_matches_branches_and_paths_case_insensitively() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&[
+        "worktree",
+        "add",
+        "-b",
+        "feature/login",
+        path.to_str().unwrap(),
+    ]);
+    let text = success(repo.cli(&["list", "--json", "--filter", "LOGIN"]));
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["branch"], "feature/login");
+}

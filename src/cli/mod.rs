@@ -97,6 +97,9 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
+    /// Case-insensitive branch/path substring
+    #[arg(long)]
+    pub filter: Option<String>,
     /// Terminate --paths records with NUL instead of newline
     #[arg(short = '0', long = "null", requires = "paths")]
     pub null_terminate: bool,
@@ -631,7 +634,7 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
 
 async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
     let cfg = load_cfg().await?;
-    let worktrees: Vec<Worktree> = if args.global {
+    let mut worktrees: Vec<Worktree> = if args.global {
         list_global_worktrees(&cfg)?
     } else {
         match Git::from_cwd() {
@@ -643,6 +646,12 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
         }
     };
 
+    if let Some(pattern) = &args.filter {
+        let pattern = pattern.to_lowercase();
+        worktrees.retain(|wt| {
+            wt.branch.to_lowercase().contains(&pattern) || wt.path.to_lowercase().contains(&pattern)
+        });
+    }
     if args.json {
         let mut out = serde_json::to_string_pretty(&worktrees)?;
         out.push('\n');
