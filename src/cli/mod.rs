@@ -97,6 +97,9 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
+    /// Deterministic ordering; default keeps Git's main-first order
+    #[arg(long, value_parser = ["branch", "path"])]
+    pub sort: Option<String>,
     /// Case-insensitive branch/path substring
     #[arg(long)]
     pub filter: Option<String>,
@@ -646,6 +649,15 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
         }
     };
 
+    if let Some(sort) = &args.sort {
+        match sort.as_str() {
+            "branch" => {
+                worktrees.sort_by(|a, b| a.branch.cmp(&b.branch).then_with(|| a.path.cmp(&b.path)))
+            }
+            "path" => worktrees.sort_by(|a, b| a.path.cmp(&b.path)),
+            _ => unreachable!("clap validates sort keys"),
+        }
+    }
     if let Some(pattern) = &args.filter {
         let pattern = pattern.to_lowercase();
         worktrees.retain(|wt| {

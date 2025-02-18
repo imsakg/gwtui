@@ -174,3 +174,14 @@ fn list_filter_matches_branches_and_paths_case_insensitively() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["branch"], "feature/login");
 }
+
+#[test]
+fn list_sort_orders_json_by_branch_and_rejects_unknown_keys() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "aaa", path.to_str().unwrap()]);
+    let text = success(repo.cli(&["list", "--json", "--sort", "branch"]));
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+    assert_eq!(rows[0]["branch"], "aaa");
+    assert!(!repo.cli(&["list", "--sort", "typo"]).status.success());
+}
