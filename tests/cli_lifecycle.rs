@@ -185,3 +185,14 @@ fn list_sort_orders_json_by_branch_and_rejects_unknown_keys() {
     assert_eq!(rows[0]["branch"], "aaa");
     assert!(!repo.cli(&["list", "--sort", "typo"]).status.success());
 }
+
+#[test]
+fn list_linked_excludes_the_main_checkout() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    let text = success(repo.cli(&["list", "--json", "--linked"]));
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["is_main"], false);
+}

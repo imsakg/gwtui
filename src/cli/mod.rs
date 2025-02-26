@@ -97,6 +97,9 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
+    /// Exclude the main repository checkout
+    #[arg(long)]
+    pub linked: bool,
     /// Deterministic ordering; default keeps Git's main-first order
     #[arg(long, value_parser = ["branch", "path"])]
     pub sort: Option<String>,
@@ -649,6 +652,9 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
         }
     };
 
+    if args.linked {
+        worktrees.retain(|wt| !wt.is_main);
+    }
     if let Some(sort) = &args.sort {
         match sort.as_str() {
             "branch" => {
@@ -700,7 +706,7 @@ fn list_global_worktrees(cfg: &crate::config::Config) -> anyhow::Result<Vec<Work
                 path: e.path,
                 branch,
                 commit_hash: e.commit_hash,
-                is_main: false,
+                is_main: e.is_main,
                 created_at: "0001-01-01T00:00:00Z".to_owned(),
             }
         })
@@ -832,7 +838,7 @@ async fn collect_statuses_once(
                     path: e.path,
                     branch: e.branch,
                     commit_hash: e.commit_hash,
-                    is_main: false,
+                    is_main: e.is_main,
                     created_at: "0001-01-01T00:00:00Z".to_owned(),
                 })
                 .collect()
