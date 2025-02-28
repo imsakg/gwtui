@@ -2623,8 +2623,7 @@ fn get_local_worktree_path(
 ) -> anyhow::Result<String> {
     let wm = WorktreeManager::new(git.clone(), cfg.clone());
     let path = if let Some(pat) = pattern {
-        let matches = wm.get_matching_worktrees(pat)?;
-        resolve_one_worktree(matches, "worktree selection")?
+        wm.resolve(pat)?.path
     } else {
         let worktrees = wm.list()?;
         resolve_one_worktree(worktrees, "worktree selection")?

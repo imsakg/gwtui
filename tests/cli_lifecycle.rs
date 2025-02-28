@@ -196,3 +196,23 @@ fn list_linked_excludes_the_main_checkout() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["is_main"], false);
 }
+
+#[test]
+fn get_prefers_an_exact_branch_over_a_longer_prefix_match() {
+    let repo = TestRepo::new();
+    let first = repo.child("first");
+    let other = repo.child("second");
+    repo.git(&["worktree", "add", "-b", "feature", first.to_str().unwrap()]);
+    repo.git(&[
+        "worktree",
+        "add",
+        "-b",
+        "feature-longer",
+        other.to_str().unwrap(),
+    ]);
+    let text = success(repo.cli(&["get", "feature"]));
+    assert_eq!(
+        text.trim_end(),
+        first.canonicalize().unwrap().to_str().unwrap()
+    );
+}
