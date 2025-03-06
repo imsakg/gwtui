@@ -181,10 +181,10 @@ pub struct StatusArgs {
     #[arg(short = 's', long = "sort", default_value = "")]
     pub sort: String,
     /// Output as JSON
-    #[arg(long = "json")]
+    #[arg(long = "json", conflicts_with_all = ["csv", "watch"])]
     pub json: bool,
     /// Output as CSV
-    #[arg(long = "csv")]
+    #[arg(long = "csv", conflicts_with = "watch")]
     pub csv: bool,
     /// Show additional information
     #[arg(short = 'v', long = "verbose")]

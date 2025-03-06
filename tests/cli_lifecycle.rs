@@ -216,3 +216,11 @@ fn get_prefers_an_exact_branch_over_a_longer_prefix_match() {
         first.canonicalize().unwrap().to_str().unwrap()
     );
 }
+
+#[test]
+fn status_rejects_conflicting_machine_formats() {
+    let repo = TestRepo::new();
+    let out = repo.cli(&["status", "--json", "--csv", "--no-fetch"]);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("cannot be used"));
+}
