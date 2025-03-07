@@ -172,7 +172,7 @@ pub struct StatusArgs {
     #[arg(short = 'w', long = "watch")]
     pub watch: bool,
     /// Refresh interval in seconds for watch mode
-    #[arg(short = 'i', long = "interval", default_value_t = 5)]
+    #[arg(short = 'i', long = "interval", default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..))]
     pub interval_seconds: u64,
     /// Filter by status (changed, up to date, inactive)
     #[arg(short = 'f', long = "filter", default_value = "")]

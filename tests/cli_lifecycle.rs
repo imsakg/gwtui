@@ -224,3 +224,11 @@ fn status_rejects_conflicting_machine_formats() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("cannot be used"));
 }
+
+#[test]
+fn status_rejects_zero_watch_intervals_before_starting_a_timer() {
+    let repo = TestRepo::new();
+    let out = repo.cli(&["status", "--interval", "0", "--no-fetch"]);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("invalid value"));
+}
