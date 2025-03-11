@@ -848,7 +848,7 @@ async fn collect_statuses_once(
     let collector = StatusCollector::new(StatusCollectorOptions {
         include_process: args.show_processes,
         fetch_remote: !args.no_fetch,
-        stale_threshold: Duration::from_secs(args.stale_days * 24 * 60 * 60),
+        stale_threshold: Duration::from_secs(args.stale_days.saturating_mul(86_400)),
         base_dir: cfg.worktree.base_dir.clone(),
         concurrency: cfg.status.concurrency,
     });

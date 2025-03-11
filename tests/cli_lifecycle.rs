@@ -232,3 +232,17 @@ fn status_rejects_zero_watch_intervals_before_starting_a_timer() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("invalid value"));
 }
+
+#[test]
+fn status_handles_the_largest_stale_threshold_without_overflow() {
+    let repo = TestRepo::new();
+    let out = success(repo.cli(&[
+        "status",
+        "--json",
+        "--no-fetch",
+        "--stale-days",
+        "18446744073709551615",
+    ]));
+    let value: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(value["summary"]["Total"], 1);
+}
