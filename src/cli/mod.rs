@@ -881,6 +881,12 @@ fn output_statuses(
             clean: usize,
             #[serde(rename = "Stale")]
             stale: usize,
+            #[serde(rename = "Staged")]
+            staged: usize,
+            #[serde(rename = "Conflict")]
+            conflict: usize,
+            #[serde(rename = "Unknown")]
+            unknown: usize,
         }
 
         #[derive(serde::Serialize)]
@@ -907,6 +913,18 @@ fn output_statuses(
                 modified,
                 clean,
                 stale,
+                staged: statuses
+                    .iter()
+                    .filter(|s| s.status == status::WorktreeState::Staged)
+                    .count(),
+                conflict: statuses
+                    .iter()
+                    .filter(|s| s.status == status::WorktreeState::Conflict)
+                    .count(),
+                unknown: statuses
+                    .iter()
+                    .filter(|s| s.status == status::WorktreeState::Unknown)
+                    .count(),
             },
             worktrees: statuses,
         };
@@ -1109,7 +1127,9 @@ fn summarize_statuses(statuses: &[WorktreeStatus]) -> (usize, usize, usize, usiz
     let mut stale = 0usize;
     for s in statuses {
         match s.status {
-            status::WorktreeState::Modified => changed += 1,
+            status::WorktreeState::Modified
+            | status::WorktreeState::Staged
+            | status::WorktreeState::Conflict => changed += 1,
             status::WorktreeState::Clean => clean += 1,
             status::WorktreeState::Stale => stale += 1,
             _ => {}

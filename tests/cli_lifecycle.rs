@@ -246,3 +246,16 @@ fn status_handles_the_largest_stale_threshold_without_overflow() {
     let value: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(value["summary"]["Total"], 1);
 }
+
+#[test]
+fn status_summary_includes_staged_and_conflicted_states() {
+    let repo = TestRepo::new();
+    std::fs::write(repo.path.join("README.md"), "staged change\n").unwrap();
+    repo.git(&["add", "README.md"]);
+    let text = success(repo.cli(&["status", "--json", "--no-fetch"]));
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(value["summary"]["Staged"], 1);
+    assert_eq!(value["summary"]["Conflict"], 0);
+    assert_eq!(value["summary"]["Unknown"], 0);
+    assert_eq!(value["summary"]["Total"], 1);
+}
