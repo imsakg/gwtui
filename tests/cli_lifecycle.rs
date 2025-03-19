@@ -259,3 +259,18 @@ fn status_summary_includes_staged_and_conflicted_states() {
     assert_eq!(value["summary"]["Unknown"], 0);
     assert_eq!(value["summary"]["Total"], 1);
 }
+
+#[test]
+fn status_csv_exposes_untracked_staged_and_conflict_counters() {
+    let repo = TestRepo::new();
+    std::fs::write(repo.path.join("new.txt"), "new").unwrap();
+    let text = success(repo.cli(&["status", "--csv", "--no-fetch"]));
+    let mut reader = csv::Reader::from_reader(text.as_bytes());
+    let headers = reader.headers().unwrap().clone();
+    for name in ["untracked", "staged", "conflicts"] {
+        assert!(headers.iter().any(|h| h == name), "missing {name}");
+    }
+    let record = reader.records().next().unwrap().unwrap();
+    let column = headers.iter().position(|h| h == "untracked").unwrap();
+    assert_eq!(&record[column], "1");
+}
