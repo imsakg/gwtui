@@ -143,7 +143,7 @@ async fn refresh(app: &mut AppState, opts: &StatusDashboardOptions) -> anyhow::R
     let collector = StatusCollector::new(StatusCollectorOptions {
         include_process: opts.show_processes,
         fetch_remote: opts.fetch_remote,
-        stale_threshold: Duration::from_secs(opts.stale_days * 24 * 60 * 60),
+        stale_threshold: crate::core::status::stale_threshold(opts.stale_days),
         base_dir: opts.cfg.worktree.base_dir.clone(),
         concurrency: opts.cfg.status.concurrency,
     });

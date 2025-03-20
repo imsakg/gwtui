@@ -652,3 +652,18 @@ mod tests {
         assert_eq!(out[0].branch, "feature/bar");
     }
 }
+
+/// Convert days without overflowing when configuration comes from the CLI.
+#[must_use]
+pub fn stale_threshold(days: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(days.saturating_mul(86_400))
+}
+
+#[cfg(test)]
+mod duration_tests {
+    #[test]
+    fn stale_duration_saturates_at_the_duration_limit() {
+        assert_eq!(super::stale_threshold(14).as_secs(), 1_209_600);
+        assert_eq!(super::stale_threshold(u64::MAX).as_secs(), u64::MAX);
+    }
+}
