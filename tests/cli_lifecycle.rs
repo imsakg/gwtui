@@ -274,3 +274,14 @@ fn status_csv_exposes_untracked_staged_and_conflict_counters() {
     let column = headers.iter().position(|h| h == "untracked").unwrap();
     assert_eq!(&record[column], "1");
 }
+
+#[test]
+fn repo_option_targets_a_repository_without_a_shell_cd() {
+    let first = TestRepo::new();
+    let second = TestRepo::new();
+    let text = success(first.cli(&["-C", second.path.to_str().unwrap(), "list", "--paths"]));
+    assert_eq!(
+        text.trim_end(),
+        second.path.canonicalize().unwrap().to_str().unwrap()
+    );
+}

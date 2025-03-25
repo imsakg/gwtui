@@ -35,6 +35,9 @@ use crate::tui::status_dashboard::StatusDashboardOptions;
     about = "Git worktree manager (gwq-compatible)"
 )]
 pub struct Cli {
+    /// Run in this directory (like git -C); specify before the subcommand
+    #[arg(short = 'C', long = "repo")]
+    pub repo: Option<PathBuf>,
     #[command(subcommand)]
     pub cmd: Option<Commands>,
 }
@@ -449,6 +452,10 @@ pub async fn main() -> ExitCode {
 }
 
 async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
+    if let Some(repo) = &cli.repo {
+        std::env::set_current_dir(repo)
+            .with_context(|| format!("cannot enter {}", repo.display()))?;
+    }
     match cli.cmd {
         None => cmd_default().await,
         Some(Commands::Completion(args)) => {
