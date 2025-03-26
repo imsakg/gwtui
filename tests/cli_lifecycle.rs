@@ -285,3 +285,12 @@ fn repo_option_targets_a_repository_without_a_shell_cd() {
         second.path.canonicalize().unwrap().to_str().unwrap()
     );
 }
+
+#[test]
+fn config_path_prints_the_resolved_file_without_creating_it() {
+    let repo = TestRepo::new();
+    let text = success(repo.cli(&["config", "path"]));
+    let path = std::path::Path::new(text.trim_end());
+    assert!(path.ends_with("home/.config/gwtui/config.toml"));
+    assert!(!path.exists());
+}

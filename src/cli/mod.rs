@@ -219,6 +219,8 @@ pub struct ConfigArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCmd {
+    /// Show the resolved configuration file without writing it
+    Path,
     List,
     Set(ConfigSetArgs),
     Get(ConfigGetArgs),
@@ -464,6 +466,10 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some(Commands::Config(args)) => match args.cmd {
+            ConfigCmd::Path => {
+                println!("{}", config::default_paths()?.config_file.display());
+                Ok(ExitCode::SUCCESS)
+            }
             ConfigCmd::List => {
                 print!("{}", config::list_resolved_toml()?);
                 Ok(ExitCode::SUCCESS)
