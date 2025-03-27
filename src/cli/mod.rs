@@ -219,6 +219,8 @@ pub struct ConfigArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCmd {
+    /// Validate effective configuration without writing defaults
+    Check,
     /// Show the resolved configuration file without writing it
     Path,
     List,
@@ -466,6 +468,12 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some(Commands::Config(args)) => match args.cmd {
+            ConfigCmd::Check => {
+                let (cfg, _, paths) = config::load()?;
+                cfg.validate()?;
+                println!("Configuration valid: {}", paths.config_file.display());
+                Ok(ExitCode::SUCCESS)
+            }
             ConfigCmd::Path => {
                 println!("{}", config::default_paths()?.config_file.display());
                 Ok(ExitCode::SUCCESS)

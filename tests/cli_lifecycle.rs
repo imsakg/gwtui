@@ -294,3 +294,20 @@ fn config_path_prints_the_resolved_file_without_creating_it() {
     assert!(path.ends_with("home/.config/gwtui/config.toml"));
     assert!(!path.exists());
 }
+
+#[test]
+fn config_check_validates_without_writing_defaults() {
+    let repo = TestRepo::new();
+    assert!(success(repo.cli(&["config", "check"])).contains("valid"));
+    assert!(
+        !repo
+            .temp
+            .path()
+            .join("home/.config/gwtui/config.toml")
+            .exists()
+    );
+    let path = repo.temp.path().join("home/.config/gwtui/config.toml");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "[status]\nconcurrency = 0\n").unwrap();
+    assert!(!repo.cli(&["config", "check"]).status.success());
+}
