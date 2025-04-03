@@ -311,3 +311,12 @@ fn config_check_validates_without_writing_defaults() {
     std::fs::write(&path, "[status]\nconcurrency = 0\n").unwrap();
     assert!(!repo.cli(&["config", "check"]).status.success());
 }
+
+#[test]
+fn config_list_can_emit_resolved_json() {
+    let repo = TestRepo::new();
+    let text = success(repo.cli(&["config", "list", "--json"]));
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(value["status"]["concurrency"], 8);
+    assert_eq!(value["worktree"]["auto_mkdir"], true);
+}

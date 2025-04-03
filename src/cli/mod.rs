@@ -223,9 +223,16 @@ pub enum ConfigCmd {
     Check,
     /// Show the resolved configuration file without writing it
     Path,
-    List,
+    List(ConfigListArgs),
     Set(ConfigSetArgs),
     Get(ConfigGetArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct ConfigListArgs {
+    /// Emit effective settings as JSON instead of TOML
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -478,8 +485,13 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
                 println!("{}", config::default_paths()?.config_file.display());
                 Ok(ExitCode::SUCCESS)
             }
-            ConfigCmd::List => {
-                print!("{}", config::list_resolved_toml()?);
+            ConfigCmd::List(args) => {
+                if args.json {
+                    let (cfg, _, _) = config::load()?;
+                    println!("{}", serde_json::to_string_pretty(&cfg)?);
+                } else {
+                    print!("{}", config::list_resolved_toml()?);
+                }
                 Ok(ExitCode::SUCCESS)
             }
             ConfigCmd::Set(set) => {
