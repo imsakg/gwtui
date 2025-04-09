@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod inspect;
 mod lifecycle;
 
 use std::ffi::OsString;
@@ -66,6 +67,8 @@ pub enum Commands {
     Tmux(MuxArgs),
     Zellij(MuxArgs),
     Task(TaskArgs),
+    /// Inspect local tooling, configuration and repository health
+    Doctor(inspect::DoctorArgs),
     Version,
 }
 
@@ -527,6 +530,7 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Tmux(args) | Commands::Zellij(args)) => cmd_tmux(args).await,
         Some(Commands::Task(args)) => cmd_task(args).await,
         Some(Commands::Version) => Ok(cmd_version()),
+        Some(Commands::Doctor(args)) => inspect::doctor(args).await,
     }
 }
 

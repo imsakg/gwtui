@@ -320,3 +320,22 @@ fn config_list_can_emit_resolved_json() {
     assert_eq!(value["status"]["concurrency"], 8);
     assert_eq!(value["worktree"]["auto_mkdir"], true);
 }
+
+#[test]
+fn doctor_reports_repository_and_tooling_without_running_tasks() {
+    let repo = TestRepo::new();
+    let text = success(repo.cli(&["doctor", "--json"]));
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(value["worktrees"], 1);
+    assert_eq!(value["missing_worktrees"], 0);
+    assert!(
+        value["git_version"]
+            .as_str()
+            .unwrap()
+            .starts_with("git version ")
+    );
+    assert_eq!(
+        value["repository"],
+        repo.path.canonicalize().unwrap().to_str().unwrap()
+    );
+}
