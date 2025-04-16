@@ -69,3 +69,53 @@ pub async fn doctor(args: DoctorArgs) -> anyhow::Result<ExitCode> {
     }
     Ok(ExitCode::SUCCESS)
 }
+
+#[derive(Debug, Parser)]
+pub struct BranchArgs {
+    /// Include remote-tracking branches (does not fetch)
+    #[arg(short = 'a', long)]
+    pub all: bool,
+    #[arg(long)]
+    pub json: bool,
+    /// Case-insensitive branch substring
+    #[arg(long)]
+    pub filter: Option<String>,
+}
+
+pub fn branches(args: BranchArgs) -> anyhow::Result<ExitCode> {
+    let mut branches = Git::from_cwd()?.list_branches(args.all)?;
+    if let Some(pattern) = args.filter {
+        let pattern = pattern.to_lowercase();
+        branches.retain(|branch| branch.name.to_lowercase().contains(&pattern));
+    }
+    branches.sort_by(|a, b| a.name.cmp(&b.name));
+    if args.json {
+        let rows: Vec<_> = branches
+            .iter()
+            .map(|branch| {
+                serde_json::json!({
+                    "name": branch.name,
+                    "is_current": branch.is_current,
+                    "is_remote": branch.is_remote,
+                    "commit": branch.last_commit.hash,
+                    "subject": branch.last_commit.message,
+                    "author": branch.last_commit.author,
+                    "date": branch.last_commit.date_iso,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&rows)?);
+    } else {
+        let mut table = crate::output::table::Table::new(["BRANCH", "CURRENT", "REMOTE", "COMMIT"]);
+        for branch in branches {
+            table.row([
+                branch.name,
+                branch.is_current.to_string(),
+                branch.is_remote.to_string(),
+                branch.last_commit.hash,
+            ]);
+        }
+        table.print()?;
+    }
+    Ok(ExitCode::SUCCESS)
+}

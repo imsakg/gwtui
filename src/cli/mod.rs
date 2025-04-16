@@ -69,6 +69,8 @@ pub enum Commands {
     Task(TaskArgs),
     /// Inspect local tooling, configuration and repository health
     Doctor(inspect::DoctorArgs),
+    /// Inspect branches and their last commit without fetching
+    Branches(inspect::BranchArgs),
     Version,
 }
 
@@ -531,6 +533,7 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Task(args)) => cmd_task(args).await,
         Some(Commands::Version) => Ok(cmd_version()),
         Some(Commands::Doctor(args)) => inspect::doctor(args).await,
+        Some(Commands::Branches(args)) => inspect::branches(args),
     }
 }
 

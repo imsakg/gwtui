@@ -339,3 +339,15 @@ fn doctor_reports_repository_and_tooling_without_running_tasks() {
         repo.path.canonicalize().unwrap().to_str().unwrap()
     );
 }
+
+#[test]
+fn branches_command_reports_filtered_local_branch_metadata() {
+    let repo = TestRepo::new();
+    repo.git(&["branch", "feature/login"]);
+    let text = success(repo.cli(&["branches", "--json", "--filter", "LOGIN"]));
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["name"], "feature/login");
+    assert_eq!(rows[0]["is_remote"], false);
+    assert_eq!(rows[0]["is_current"], false);
+}
