@@ -351,3 +351,19 @@ fn branches_command_reports_filtered_local_branch_metadata() {
     assert_eq!(rows[0]["is_remote"], false);
     assert_eq!(rows[0]["is_current"], false);
 }
+
+#[test]
+fn exec_rejects_extra_selectors_before_running_any_command() {
+    let repo = TestRepo::new();
+    let out = repo.cli(&[
+        "exec",
+        "main",
+        "ignored",
+        "--",
+        "sh",
+        "-c",
+        "touch should-not-exist",
+    ]);
+    assert!(!out.status.success());
+    assert!(!repo.path.join("should-not-exist").exists());
+}

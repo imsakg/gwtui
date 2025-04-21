@@ -2803,9 +2803,10 @@ fn parse_exec_args(args: &[OsString]) -> anyhow::Result<ParsedExecArgs> {
                 if s.starts_with('-') {
                     anyhow::bail!("unknown flag: {s}");
                 }
-                if pattern.is_none() {
-                    pattern = Some(s.to_string());
+                if pattern.is_some() {
+                    anyhow::bail!("only one worktree selector is allowed before --");
                 }
+                pattern = Some(s.to_string());
             }
         }
     }
