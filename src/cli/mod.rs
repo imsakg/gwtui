@@ -796,18 +796,17 @@ async fn cmd_exec(_args: ExecArgs, raw_args: &[OsString]) -> anyhow::Result<Exit
 }
 
 fn extract_subcommand_args(raw_args: &[OsString], subcommand: &str) -> Option<Vec<OsString>> {
-    let mut found = false;
-    let mut out = Vec::new();
-    for arg in raw_args {
-        if !found {
-            if arg == subcommand {
-                found = true;
-            }
+    let mut args = raw_args.iter().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == "-C" || arg == "--repo" {
+            args.next();
             continue;
         }
-        out.push(arg.clone());
+        if arg == subcommand {
+            return Some(args.cloned().collect());
+        }
     }
-    found.then_some(out)
+    None
 }
 
 async fn cmd_remove(args: RemoveArgs) -> anyhow::Result<ExitCode> {

@@ -367,3 +367,14 @@ fn exec_rejects_extra_selectors_before_running_any_command() {
     assert!(!out.status.success());
     assert!(!repo.path.join("should-not-exist").exists());
 }
+
+#[test]
+fn exec_distinguishes_the_subcommand_from_a_repo_named_exec() {
+    let repo = TestRepo::new();
+    std::fs::create_dir(repo.path.join("exec")).unwrap();
+    let text = success(repo.cli(&["-C", "exec", "exec", "main", "--", "sh", "-c", "pwd"]));
+    assert_eq!(
+        text.trim_end(),
+        repo.path.canonicalize().unwrap().to_str().unwrap()
+    );
+}
