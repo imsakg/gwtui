@@ -2904,6 +2904,7 @@ fn remove_local(
         return Ok(());
     }
 
+    let mut failed = 0usize;
     for wt in selected {
         let path = std::path::PathBuf::from(&wt.path);
         if args.delete_branch {
@@ -2915,6 +2916,7 @@ fn remove_local(
                 args.force_delete_branch,
             ) {
                 eprintln!("Error: failed to remove {}: {e}", wt.branch);
+                failed += 1;
                 continue;
             }
             println!("Removed worktree: {}", wt.branch);
@@ -2922,12 +2924,14 @@ fn remove_local(
         } else {
             if let Err(e) = wm.remove(&path, args.force) {
                 eprintln!("Error: failed to remove {}: {e}", wt.branch);
+                failed += 1;
                 continue;
             }
             println!("Removed worktree: {}", wt.branch);
         }
     }
 
+    anyhow::ensure!(failed == 0, "{failed} worktree operation(s) failed");
     Ok(())
 }
 
@@ -2972,6 +2976,7 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
         return Ok(());
     }
 
+    let mut failed = 0usize;
     for e in selected {
         let git = Git::new(PathBuf::from(&e.path));
         let wm = WorktreeManager::new(git, cfg.clone());
@@ -2986,6 +2991,7 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
             ) {
                 let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
                 eprintln!("Error: failed to remove {repo}:{}: {err}", e.branch);
+                failed += 1;
                 continue;
             }
             let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
@@ -2995,6 +3001,7 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
             if let Err(err) = wm.remove(&path, args.force) {
                 let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
                 eprintln!("Error: failed to remove {repo}:{}: {err}", e.branch);
+                failed += 1;
                 continue;
             }
             let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
@@ -3002,6 +3009,7 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
         }
     }
 
+    anyhow::ensure!(failed == 0, "{failed} worktree operation(s) failed");
     Ok(())
 }
 

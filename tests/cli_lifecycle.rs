@@ -378,3 +378,14 @@ fn exec_distinguishes_the_subcommand_from_a_repo_named_exec() {
         repo.path.canonicalize().unwrap().to_str().unwrap()
     );
 }
+
+#[test]
+fn remove_failure_is_visible_in_the_process_exit_status() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    std::fs::write(path.join("README.md"), "uncommitted").unwrap();
+    let out = repo.cli(&["remove", "feature"]);
+    assert!(!out.status.success());
+    assert!(path.join("README.md").exists());
+}
