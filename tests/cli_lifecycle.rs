@@ -389,3 +389,11 @@ fn remove_failure_is_visible_in_the_process_exit_status() {
     assert!(!out.status.success());
     assert!(path.join("README.md").exists());
 }
+
+#[test]
+fn force_branch_deletion_requires_the_delete_branch_flag() {
+    let repo = TestRepo::new();
+    let out = repo.cli(&["remove", "feature", "--force-delete-branch"]);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--delete-branch"));
+}

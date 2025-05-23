@@ -167,7 +167,7 @@ pub struct RemoveArgs {
     #[arg(short = 'b', long = "delete-branch")]
     pub delete_branch: bool,
     /// Force delete the branch even if not merged
-    #[arg(long = "force-delete-branch")]
+    #[arg(long = "force-delete-branch", requires = "delete_branch")]
     pub force_delete_branch: bool,
     /// Pattern
     pub pattern: Option<String>,
