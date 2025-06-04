@@ -397,3 +397,21 @@ fn force_branch_deletion_requires_the_delete_branch_flag() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("--delete-branch"));
 }
+
+#[test]
+fn remove_prefers_the_exact_branch_without_prompting_for_prefix_matches() {
+    let repo = TestRepo::new();
+    let first = repo.child("first");
+    let second = repo.child("second");
+    repo.git(&["worktree", "add", "-b", "feature", first.to_str().unwrap()]);
+    repo.git(&[
+        "worktree",
+        "add",
+        "-b",
+        "feature-other",
+        second.to_str().unwrap(),
+    ]);
+    success(repo.cli(&["remove", "feature"]));
+    assert!(!first.exists());
+    assert!(second.exists());
+}

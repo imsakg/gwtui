@@ -2871,24 +2871,10 @@ fn remove_local(
         anyhow::bail!("no removable worktrees found");
     }
 
-    let selected = if let Some(pat) = args.pattern.as_deref() {
-        let pat_raw = pat;
-        let pat = pat_raw.to_lowercase();
-        let matches: Vec<Worktree> = candidates
-            .iter()
-            .filter(|w| {
-                w.branch.to_lowercase().contains(&pat) || w.path.to_lowercase().contains(&pat)
-            })
-            .cloned()
-            .collect();
-        if matches.is_empty() {
-            anyhow::bail!("no worktree found matching pattern: {pat_raw}");
-        }
-        if matches.len() == 1 {
-            matches
-        } else {
-            pick_many_worktrees("Select worktrees", &matches)?
-        }
+    let selected = if let Some(pattern) = args.pattern.as_deref() {
+        let worktree = wm.resolve(pattern)?;
+        anyhow::ensure!(!worktree.is_main, "cannot remove the main worktree");
+        vec![worktree]
     } else {
         pick_many_worktrees("Select worktrees", &candidates)?
     };
