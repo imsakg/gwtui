@@ -217,9 +217,21 @@ impl WorktreeManager {
                 ));
             }
         }
+        // Keep the Git command cwd alive even if this manager points at the checkout
+        // being removed. The first registration is the main repository.
+        let branch_git = if delete_branch {
+            let main = self
+                .list()?
+                .into_iter()
+                .find(|wt| wt.is_main)
+                .ok_or_else(|| GwtuiError::Other("main repository is unavailable".to_owned()))?;
+            Some(Git::new(PathBuf::from(main.path)))
+        } else {
+            None
+        };
         self.remove(path, force_worktree)?;
-        if delete_branch {
-            self.git.delete_branch(branch, force_branch)?;
+        if let Some(git) = branch_git {
+            git.delete_branch(branch, force_branch)?;
         }
         Ok(())
     }
