@@ -102,14 +102,7 @@ impl WorktreeManager {
         custom_path: Option<&Path>,
         create_branch: bool,
     ) -> Result<(), GwtuiError> {
-        let raw_path = if let Some(p) = custom_path {
-            p.to_string_lossy().to_string()
-        } else {
-            self.generate_worktree_path(branch)
-        };
-
-        let expanded =
-            config_util::expand_path(&raw_path).map_err(|e| GwtuiError::Other(e.to_string()))?;
+        let expanded = self.prepare_path(branch, custom_path)?;
 
         if custom_path.is_some() && !create_branch {
             // match gwq behavior: validate only when user supplies path and not forcing
@@ -134,14 +127,7 @@ impl WorktreeManager {
         base_branch: Option<&str>,
         custom_path: Option<&Path>,
     ) -> Result<PathBuf, GwtuiError> {
-        let raw_path = if let Some(p) = custom_path {
-            p.to_string_lossy().to_string()
-        } else {
-            self.generate_worktree_path(branch)
-        };
-
-        let expanded =
-            config_util::expand_path(&raw_path).map_err(|e| GwtuiError::Other(e.to_string()))?;
+        let expanded = self.prepare_path(branch, custom_path)?;
 
         if self.cfg.worktree.auto_mkdir
             && let Some(parent) = expanded.parent()
@@ -186,6 +172,18 @@ impl WorktreeManager {
             )));
         }
         Ok(())
+    }
+
+    fn prepare_path(
+        &self,
+        branch: &str,
+        custom_path: Option<&Path>,
+    ) -> Result<PathBuf, GwtuiError> {
+        if let Some(path) = custom_path {
+            return Ok(self.absolute_path(path));
+        }
+        config_util::expand_path(&self.generate_worktree_path(branch))
+            .map_err(|error| GwtuiError::Other(error.to_string()))
     }
 
     fn absolute_path(&self, path: &Path) -> PathBuf {

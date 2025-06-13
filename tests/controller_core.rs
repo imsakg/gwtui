@@ -20,3 +20,18 @@ fn remove_with_branch_works_when_the_manager_was_created_in_the_linked_checkout(
     assert!(!path.exists());
     assert_eq!(repo.git(&["branch", "--format=%(refname:short)"]), "main");
 }
+
+#[test]
+fn custom_worktree_paths_are_literal_not_environment_templates() {
+    let repo = TestRepo::new();
+    let path = repo.child("$HOME");
+    manager(&repo.path)
+        .add("literal", Some(&path), true)
+        .unwrap();
+    assert!(path.join(".git").is_file());
+    let other = repo.child("${HOME}");
+    manager(&repo.path)
+        .add_from_base("other", Some("HEAD"), Some(&other))
+        .unwrap();
+    assert!(other.join(".git").is_file());
+}
