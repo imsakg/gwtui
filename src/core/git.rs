@@ -424,13 +424,19 @@ mod metadata_encoding_tests {
 }
 
 fn find_repo_root(start: &Path) -> Option<PathBuf> {
-    let mut cur = Some(start);
-    while let Some(dir) = cur {
-        let candidate = dir.join(".git");
-        if candidate.is_dir() || candidate.is_file() {
-            return Some(dir.to_path_buf());
-        }
-        cur = dir.parent();
+    let out = Command::new("git")
+        .arg("-C")
+        .arg(start)
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
     }
-    None
+    let text = String::from_utf8(out.stdout).ok()?;
+    // Git appends exactly one record newline. Trimming all whitespace would
+    // change valid directory names with leading/trailing spaces or newlines.
+    let text = text.strip_suffix('\n').unwrap_or(&text);
+    let text = text.strip_suffix('\r').unwrap_or(text);
+    Some(PathBuf::from(text))
 }

@@ -35,3 +35,18 @@ fn custom_worktree_paths_are_literal_not_environment_templates() {
         .unwrap();
     assert!(other.join(".git").is_file());
 }
+
+#[test]
+fn repository_detection_rejects_forged_git_markers() {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::create_dir(temp.path().join(".git")).unwrap();
+    assert!(Git::from_dir(temp.path()).is_err());
+    let repo = TestRepo::new();
+    std::fs::create_dir(repo.path.join("nested")).unwrap();
+    assert_eq!(
+        Git::from_dir(&repo.path.join("nested"))
+            .unwrap()
+            .repo_root(),
+        repo.path.canonicalize().unwrap()
+    );
+}
