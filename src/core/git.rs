@@ -437,6 +437,7 @@ fn find_repo_root(start: &Path) -> Option<PathBuf> {
     // Git appends exactly one record newline. Trimming all whitespace would
     // change valid directory names with leading/trailing spaces or newlines.
     let text = text.strip_suffix('\n').unwrap_or(&text);
+    #[cfg(windows)]
     let text = text.strip_suffix('\r').unwrap_or(text);
     Some(PathBuf::from(text))
 }

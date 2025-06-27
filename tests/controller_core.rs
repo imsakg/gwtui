@@ -50,3 +50,14 @@ fn repository_detection_rejects_forged_git_markers() {
         repo.path.canonicalize().unwrap()
     );
 }
+
+#[test]
+fn repository_detection_preserves_a_trailing_carriage_return_in_unix_names() {
+    let repo = TestRepo::new();
+    let path = repo.child("repo\r");
+    std::fs::rename(&repo.path, &path).unwrap();
+    assert_eq!(
+        Git::from_dir(&path).unwrap().repo_root(),
+        path.canonicalize().unwrap()
+    );
+}
