@@ -430,9 +430,29 @@ fn find_repo_root(start: &Path) -> Option<PathBuf> {
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .ok()?;
-    if !out.status.success() {
-        return None;
-    }
+    let out = if out.status.success() {
+        out
+    } else {
+        let bare = Command::new("git")
+            .arg("-C")
+            .arg(start)
+            .args(["rev-parse", "--is-bare-repository"])
+            .output()
+            .ok()?;
+        if !bare.status.success() || bare.stdout != b"true\n" {
+            return None;
+        }
+        let out = Command::new("git")
+            .arg("-C")
+            .arg(start)
+            .args(["rev-parse", "--absolute-git-dir"])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        out
+    };
     let text = String::from_utf8(out.stdout).ok()?;
     // Git appends exactly one record newline. Trimming all whitespace would
     // change valid directory names with leading/trailing spaces or newlines.

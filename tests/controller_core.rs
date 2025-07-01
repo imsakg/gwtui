@@ -61,3 +61,22 @@ fn repository_detection_preserves_a_trailing_carriage_return_in_unix_names() {
         path.canonicalize().unwrap()
     );
 }
+
+#[test]
+fn bare_repositories_can_manage_linked_review_worktrees() {
+    let repo = TestRepo::new();
+    let bare = repo.child("bare.git");
+    repo.git(&[
+        "clone",
+        "--bare",
+        repo.path.to_str().unwrap(),
+        bare.to_str().unwrap(),
+    ]);
+    let wm = manager(&bare);
+    let checkout = repo.child("review");
+    wm.add_detached(&checkout, None).unwrap();
+    let rows = wm.list().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].is_main);
+    assert!(checkout.join(".git").exists());
+}
