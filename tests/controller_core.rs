@@ -80,3 +80,19 @@ fn bare_repositories_can_manage_linked_review_worktrees() {
     assert!(rows[0].is_main);
     assert!(checkout.join(".git").exists());
 }
+
+#[test]
+fn relative_path_selectors_resolve_to_registered_worktrees() {
+    let repo = TestRepo::new();
+    let selected = manager(&repo.path).resolve(".").unwrap();
+    assert_eq!(
+        std::path::Path::new(&selected.path),
+        repo.path.canonicalize().unwrap()
+    );
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    assert_eq!(
+        manager(&repo.path).resolve("../feature").unwrap().branch,
+        "feature"
+    );
+}

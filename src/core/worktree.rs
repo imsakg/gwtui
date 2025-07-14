@@ -279,6 +279,13 @@ impl WorktreeManager {
             [] => {}
             _ => return Err(GwtuiError::AmbiguousWorktree(pattern.to_owned())),
         }
+        let path = self.absolute_path(Path::new(pattern));
+        if let Some(worktree) = worktrees
+            .iter()
+            .find(|wt| paths_equal(&path, Path::new(&wt.path)))
+        {
+            return Ok(worktree.clone());
+        }
         let pattern_lower = pattern.to_lowercase();
         let mut matches = worktrees.into_iter().filter(|wt| {
             wt.branch.to_lowercase().contains(&pattern_lower)
