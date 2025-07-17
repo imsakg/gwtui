@@ -21,6 +21,7 @@ struct Diagnostic {
     repository: Option<String>,
     worktrees: usize,
     missing_worktrees: usize,
+    locked_worktrees: usize,
 }
 
 pub async fn doctor(args: DoctorArgs) -> anyhow::Result<ExitCode> {
@@ -33,6 +34,14 @@ pub async fn doctor(args: DoctorArgs) -> anyhow::Result<ExitCode> {
         None => Vec::new(),
     };
     let report = Diagnostic {
+        locked_worktrees: match &git {
+            Some(git) => git
+                .list_worktrees_porcelain()?
+                .split('\0')
+                .filter(|field| *field == "locked" || field.starts_with("locked "))
+                .count(),
+            None => 0,
+        },
         version: env!("CARGO_PKG_VERSION"),
         git_version: String::from_utf8(out.stdout)?.trim().to_owned(),
         config_path: crate::config::default_paths()?
@@ -63,8 +72,8 @@ pub async fn doctor(args: DoctorArgs) -> anyhow::Result<ExitCode> {
                 .unwrap_or("not inside a repository")
         );
         println!(
-            "Worktrees: {} ({} missing)",
-            report.worktrees, report.missing_worktrees
+            "Worktrees: {} ({} missing, {} locked)",
+            report.worktrees, report.missing_worktrees, report.locked_worktrees
         );
     }
     Ok(ExitCode::SUCCESS)

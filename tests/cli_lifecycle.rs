@@ -415,3 +415,23 @@ fn remove_prefers_the_exact_branch_without_prompting_for_prefix_matches() {
     assert!(!first.exists());
     assert!(second.exists());
 }
+
+#[test]
+fn doctor_counts_locked_and_missing_registrations() {
+    let repo = TestRepo::new();
+    let path = repo.child("feature");
+    repo.git(&["worktree", "add", "-b", "feature", path.to_str().unwrap()]);
+    repo.git(&[
+        "worktree",
+        "lock",
+        "--reason",
+        "keep",
+        path.to_str().unwrap(),
+    ]);
+    std::fs::remove_dir_all(&path).unwrap();
+    let value: serde_json::Value =
+        serde_json::from_str(&success(repo.cli(&["doctor", "--json"]))).unwrap();
+    assert_eq!(value["locked_worktrees"], 1);
+    assert_eq!(value["missing_worktrees"], 1);
+    assert_eq!(value["worktrees"], 2);
+}
