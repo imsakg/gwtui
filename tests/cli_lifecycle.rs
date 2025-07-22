@@ -435,3 +435,14 @@ fn doctor_counts_locked_and_missing_registrations() {
     assert_eq!(value["missing_worktrees"], 1);
     assert_eq!(value["worktrees"], 2);
 }
+
+#[test]
+fn list_detached_selects_review_checkouts_without_attached_branches() {
+    let repo = TestRepo::new();
+    let path = repo.child("review");
+    repo.git(&["worktree", "add", "--detach", path.to_str().unwrap()]);
+    let text = success(repo.cli(&["list", "--json", "--detached"]));
+    let rows: Vec<serde_json::Value> = serde_json::from_str(&text).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["branch"], "HEAD");
+}

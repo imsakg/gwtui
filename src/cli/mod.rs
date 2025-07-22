@@ -105,6 +105,9 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
+    /// Show existing detached checkouts (branch is HEAD)
+    #[arg(long)]
+    pub detached: bool,
     /// Exclude the main repository checkout
     #[arg(long)]
     pub linked: bool,
@@ -694,6 +697,9 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
 
     if args.linked {
         worktrees.retain(|wt| !wt.is_main);
+    }
+    if args.detached {
+        worktrees.retain(|wt| wt.branch == "HEAD");
     }
     if let Some(sort) = &args.sort {
         match sort.as_str() {
