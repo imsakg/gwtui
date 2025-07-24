@@ -1018,7 +1018,7 @@ fn output_statuses(
 }
 
 fn format_changes(gs: status::GitStatus) -> String {
-    if gs.modified == 0 && gs.added == 0 && gs.deleted == 0 && gs.untracked == 0 {
+    if !gs.is_dirty() {
         return "-".to_owned();
     }
     let mut parts = Vec::new();
@@ -1033,6 +1033,12 @@ fn format_changes(gs: status::GitStatus) -> String {
     }
     if gs.untracked > 0 {
         parts.push(format!("{} untracked", gs.untracked));
+    }
+    if gs.staged > 0 {
+        parts.push(format!("{} staged", gs.staged));
+    }
+    if gs.conflicts > 0 {
+        parts.push(format!("{} conflicted", gs.conflicts));
     }
     parts.join(", ")
 }

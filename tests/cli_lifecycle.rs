@@ -446,3 +446,12 @@ fn list_detached_selects_review_checkouts_without_attached_branches() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0]["branch"], "HEAD");
 }
+
+#[test]
+fn status_table_shows_staged_change_counts() {
+    let repo = TestRepo::new();
+    std::fs::write(repo.path.join("README.md"), "staged\n").unwrap();
+    repo.git(&["add", "README.md"]);
+    let text = success(repo.cli(&["status", "--no-fetch"]));
+    assert!(text.contains("1 staged"), "{text}");
+}
