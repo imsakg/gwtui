@@ -35,7 +35,8 @@ impl Table {
         Ok(())
     }
 
-    fn write_to(&self, mut out: impl io::Write) -> io::Result<()> {
+    /// Render a human table into any writer without acquiring stdout.
+    pub fn write_to(&self, mut out: impl io::Write) -> io::Result<()> {
         let mut widths = vec![0usize; self.headers.len()];
         for (i, h) in self.headers.iter().enumerate() {
             widths[i] = widths[i].max(visible_width(h));
@@ -58,8 +59,7 @@ impl Table {
 }
 
 fn visible_width(s: &str) -> usize {
-    // Best-effort: assume each char is width 1. Ratatui UI handles widths separately.
-    s.chars().count()
+    ratatui::text::Line::raw(s).width()
 }
 
 fn format_row(row: &[String], widths: &[usize]) -> String {
