@@ -58,8 +58,20 @@ impl Table {
     }
 }
 
+fn display_cell(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| {
+            if c.is_control() {
+                c.escape_default().collect::<Vec<_>>()
+            } else {
+                vec![c]
+            }
+        })
+        .collect()
+}
+
 fn visible_width(s: &str) -> usize {
-    ratatui::text::Line::raw(s).width()
+    ratatui::text::Line::raw(display_cell(s)).width()
 }
 
 fn format_row(row: &[String], widths: &[usize]) -> String {
@@ -72,7 +84,7 @@ fn format_row(row: &[String], widths: &[usize]) -> String {
             .get(i)
             .copied()
             .unwrap_or_else(|| visible_width(cell));
-        out.push_str(cell);
+        out.push_str(&display_cell(cell));
         let pad = w.saturating_sub(visible_width(cell));
         for _ in 0..pad {
             out.push(' ');
