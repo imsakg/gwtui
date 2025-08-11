@@ -26,7 +26,12 @@ impl Table {
     }
 
     pub fn write_csv(&self) -> io::Result<()> {
-        let mut wtr = csv::Writer::from_writer(io::stdout().lock());
+        self.write_csv_to(io::stdout().lock())
+    }
+
+    /// Write lossless machine CSV to an arbitrary output sink.
+    pub fn write_csv_to(&self, out: impl io::Write) -> io::Result<()> {
+        let mut wtr = csv::Writer::from_writer(out);
         wtr.write_record(&self.headers)?;
         for row in &self.rows {
             wtr.write_record(row)?;

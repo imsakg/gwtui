@@ -24,3 +24,31 @@ fn human_tables_escape_control_characters_without_corrupting_rows() {
     assert!(text.contains("one\\ntwo\\t\\u{1b}[31m"));
     assert!(!text.contains('\u{1b}'));
 }
+
+#[test]
+fn csv_sink_round_trips_quotes_commas_unicode_and_newlines() {
+    let mut table = Table::new(["path", "branch"]);
+    table.row(["one,\"two\"\n猫", "feature"]);
+    let mut bytes = Vec::new();
+    table.write_csv_to(&mut bytes).unwrap();
+    let mut csv = csv::Reader::from_reader(bytes.as_slice());
+    let row = csv.records().next().unwrap().unwrap();
+    assert_eq!(&row[0], "one,\"two\"\n猫");
+    assert_eq!(&row[1], "feature");
+}
+
+#[test]
+fn table_writer_errors_are_not_swallowed() {
+    struct Broken;
+    impl std::io::Write for Broken {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let table = Table::new(["header"]);
+    assert!(table.write_to(Broken).is_err());
+    assert!(table.write_csv_to(Broken).is_err());
+}
