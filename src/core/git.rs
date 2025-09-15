@@ -412,17 +412,6 @@ fn decode_worktree_porcelain(bytes: Vec<u8>) -> Result<String, GwtuiError> {
     })
 }
 
-#[cfg(test)]
-mod metadata_encoding_tests {
-    use super::*;
-
-    #[test]
-    fn worktree_metadata_rejects_invalid_utf8() {
-        let error = decode_worktree_porcelain(b"worktree /invalid-\xff\0\0".to_vec()).unwrap_err();
-        assert!(error.to_string().contains("UTF-8"));
-    }
-}
-
 fn find_repo_root(start: &Path) -> Option<PathBuf> {
     let out = Command::new("git")
         .arg("-C")
@@ -460,4 +449,15 @@ fn find_repo_root(start: &Path) -> Option<PathBuf> {
     #[cfg(windows)]
     let text = text.strip_suffix('\r').unwrap_or(text);
     Some(PathBuf::from(text))
+}
+
+#[cfg(test)]
+mod metadata_encoding_tests {
+    use super::*;
+
+    #[test]
+    fn worktree_metadata_rejects_invalid_utf8() {
+        let error = decode_worktree_porcelain(b"worktree /invalid-\xff\0\0".to_vec()).unwrap_err();
+        assert!(error.to_string().contains("UTF-8"));
+    }
 }

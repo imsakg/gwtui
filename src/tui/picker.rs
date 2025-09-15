@@ -167,13 +167,12 @@ fn handle_key(
             query.pop();
             recompute_filter(query, lower_titles, filtered, selected, list_state);
         }
-        KeyCode::Char(c) => {
+        KeyCode::Char(c)
             if !key.modifiers.contains(KeyModifiers::CONTROL)
-                && !key.modifiers.contains(KeyModifiers::ALT)
-            {
-                query.push(c);
-                recompute_filter(query, lower_titles, filtered, selected, list_state);
-            }
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            query.push(c);
+            recompute_filter(query, lower_titles, filtered, selected, list_state);
         }
         _ => {}
     }

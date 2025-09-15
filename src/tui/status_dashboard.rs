@@ -232,12 +232,11 @@ fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
             KeyCode::Backspace => {
                 app.filter_input.pop();
             }
-            KeyCode::Char(c) => {
+            KeyCode::Char(c)
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !key.modifiers.contains(KeyModifiers::ALT)
-                {
-                    app.filter_input.push(c);
-                }
+                    && !key.modifiers.contains(KeyModifiers::ALT) =>
+            {
+                app.filter_input.push(c);
             }
             _ => {}
         },
