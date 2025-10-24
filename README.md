@@ -2,7 +2,7 @@
 
 ![tui-screenshot](assets/tui.jpg)
 
-Production-grade Rust + Ratatui reimplementation inspired by `gwq` (worktrees + status + tasks), with **CLI compatibility** and a modern mux backend (**Zellij**).
+Rust + Ratatui worktree manager inspired by `gwq`, with a scriptable lifecycle CLI, status dashboard, tasks, and a **Zellij** mux backend.
 
 Key points:
 
@@ -11,6 +11,15 @@ Key points:
 - Shells out to `git` (git is the source of truth)
 - Interactive UI only when stdout is a TTY
 - `gwtui tmux ...` is a **compatibility alias** that routes to Zellij
+
+## Guides
+
+- [CLI output, selection and exit contracts](docs/cli-reference.md)
+- [Worktree lifecycle and safety](docs/worktree-lifecycle.md)
+- [Status, naming, discovery and configuration](docs/status-and-config.md)
+- [Quoted shell helpers and NUL-aware pipelines](docs/shell-integration.md)
+- [Diagnostics and recovery](docs/troubleshooting.md)
+- [Development and verification](CONTRIBUTING.md)
 
 ## Install / Build
 
@@ -101,8 +110,15 @@ Commands:
 - `gwtui exec [gwq-compatible flags...] -- <cmd...>`
 - `gwtui remove|rm [-f] [-d] [-g] [-b] [--force-delete-branch] [pattern]`
 - `gwtui status [-g] [-v] [--json|--csv] [--watch] [--filter ...] [--sort ...]`
-- `gwtui prune`
-- `gwtui config list|set|get`
+- `gwtui add -b <branch> [path] --base <revision>`
+- `gwtui add --detach <path> [--revision <commit>]`
+- `gwtui list --paths [--null] [--linked] [--detached]`
+- `gwtui list --json [--filter <substring>] [--sort branch|path]`
+- `gwtui lock <selector> [--reason <text>]` / `gwtui unlock <selector>`
+- `gwtui move|mv <selector> <destination>` / `gwtui repair [paths...]`
+- `gwtui prune [--dry-run] [--expire <git-expression>]`
+- `gwtui doctor [--json]` / `gwtui branches [--all] [--json]`
+- `gwtui config path|check|list|set|get`
 - `gwtui completion <shell>`
 - `gwtui tmux list|run|attach|kill` (routes to Zellij)
 - `gwtui zellij list|run|attach|kill` (same as `tmux`)
@@ -113,7 +129,8 @@ Commands:
 
 Config file:
 
-- macOS/Linux: `~/.config/gwtui/config.toml`
+- Explicit override: `GWTUI_CONFIG` (see `gwtui config path`)
+- macOS/Linux: `$XDG_CONFIG_HOME/gwtui/config.toml`, otherwise `~/.config/gwtui/config.toml`
 - Windows: platform config dir (also honors the Unix path if present)
 
 Resolved config:
