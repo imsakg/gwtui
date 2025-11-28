@@ -13,6 +13,7 @@ cargo build --locked
 cargo test --locked
 cargo build --locked --release
 ./target/release/gwtui --help
+python3 scripts/smoke.py ./target/release/gwtui
 cargo doc --no-deps
 ```
 

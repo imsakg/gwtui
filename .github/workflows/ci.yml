@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Shell steps are fixed commands; github.ref is used only for concurrency.
   verify:
     strategy:
       fail-fast: false
@@ -35,3 +36,5 @@ jobs:
         run: cargo build --locked --release
       - name: Noninteractive help
         run: ./target/release/gwtui --help
+      - name: Disposable lifecycle smoke
+        run: python3 scripts/smoke.py ./target/release/gwtui
