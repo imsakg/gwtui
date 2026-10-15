@@ -19,17 +19,13 @@ pub fn parse_origin_url(url: &str) -> Option<RepoId> {
     // - git@host:owner/repo(.git)
     let url = url.trim();
 
-    if !url.contains("://") {
-        // SCP style supports SSH aliases and arbitrary deployment usernames.
-        let (authority, path) = url.split_once(':')?;
-        // A one-letter host followed by a backslash is a Windows drive path.
-        if authority.len() == 1 && path.starts_with('\\') {
-            return None;
-        }
-        return parse_host_path(authority, path);
+    if let Some(rest) = url.strip_prefix("git@") {
+        // git@github.com:owner/repo.git
+        let (host, path) = rest.split_once(':')?;
+        return parse_host_path(host, path);
     }
 
-    let re = Regex::new(r"^(?:(?:https?)|ssh|git)://([^/]+)/(.+)$").ok()?;
+    let re = Regex::new(r"^(?:(?:https?)|ssh)://(?:git@)?([^/]+)/(.+)$").ok()?;
     let caps = re.captures(url)?;
     let host = caps.get(1)?.as_str();
     let path = caps.get(2)?.as_str();
@@ -37,40 +33,13 @@ pub fn parse_origin_url(url: &str) -> Option<RepoId> {
 }
 
 fn parse_host_path(host: &str, path: &str) -> Option<RepoId> {
-    // Credentials and transport ports must never become filesystem components.
-    let host = host.rsplit('@').next()?;
-    let host = if let Some((host, port)) = host.split_once(':') {
-        if port.parse::<u16>().ok()? == 0 {
-            return None;
-        }
-        host
-    } else {
-        host
-    };
-    if host.is_empty()
-        || matches!(host, "." | "..")
-        || !host
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
-    {
-        return None;
-    }
-    let parts: Vec<_> = path.trim_end_matches('/').split('/').collect();
-    if parts.iter().any(|part| !safe_remote_segment(part)) {
-        return None;
-    }
-    if parts.len() < 2 {
-        return None;
-    }
-    let owner = parts[..parts.len() - 1].join("/");
-    let repo_raw = parts.last()?.to_string();
+    let mut parts = path.trim_matches('/').split('/');
+    let owner = parts.next()?.to_owned();
+    let repo_raw = parts.next()?.to_owned();
     let repo = repo_raw
         .strip_suffix(".git")
         .unwrap_or(&repo_raw)
         .to_owned();
-    if repo.is_empty() || matches!(repo.as_str(), "." | "..") {
-        return None;
-    }
     Some(RepoId {
         host: host.to_owned(),
         owner,
@@ -78,41 +47,22 @@ fn parse_host_path(host: &str, path: &str) -> Option<RepoId> {
     })
 }
 
-fn safe_remote_segment(segment: &str) -> bool {
-    let lower = segment.to_ascii_lowercase();
-    !segment.is_empty()
-        && !matches!(segment, "." | "..")
-        && !segment.chars().any(|c| {
-            c.is_control()
-                || c.is_whitespace()
-                || matches!(c, '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#')
-        })
-        && !["%2e", "%2f", "%5c", "%00"]
-            .iter()
-            .any(|escape| lower.contains(escape))
-}
-
 #[must_use]
 pub fn render_template(template: &str, id: &RepoId, branch: &str) -> String {
     let hash = short_hash(&format!("{}/{}/{}", id.host, id.owner, id.repo), branch);
 
-    // Match original template tokens once; values are never parsed as templates.
-    let re = Regex::new(
-        r"\{\{(?:host|owner|repo|branch|hash|\.Host|\.Owner|\.Repository|\.Branch|\.Hash)\}\}",
-    )
-    .expect("static template token pattern");
-    re.replace_all(template, |caps: &regex::Captures<'_>| {
-        match &caps[0] {
-            "{{host}}" | "{{.Host}}" => id.host.as_str(),
-            "{{owner}}" | "{{.Owner}}" => id.owner.as_str(),
-            "{{repo}}" | "{{.Repository}}" => id.repo.as_str(),
-            "{{branch}}" | "{{.Branch}}" => branch,
-            "{{hash}}" | "{{.Hash}}" => hash.as_str(),
-            _ => unreachable!("static token pattern"),
-        }
-        .to_owned()
-    })
-    .into_owned()
+    // Support both gwtui-style and gwq-style tokens.
+    template
+        .replace("{{host}}", &id.host)
+        .replace("{{owner}}", &id.owner)
+        .replace("{{repo}}", &id.repo)
+        .replace("{{branch}}", branch)
+        .replace("{{hash}}", &hash)
+        .replace("{{.Host}}", &id.host)
+        .replace("{{.Owner}}", &id.owner)
+        .replace("{{.Repository}}", &id.repo)
+        .replace("{{.Branch}}", branch)
+        .replace("{{.Hash}}", &hash)
 }
 
 #[must_use]
@@ -121,9 +71,7 @@ pub fn sanitize_all(
     sanitize: &std::collections::BTreeMap<String, String>,
 ) -> String {
     for (from, to) in sanitize {
-        if !from.is_empty() {
-            s = s.replace(from, to);
-        }
+        s = s.replace(from, to);
     }
     sanitize_for_filesystem(&s)
 }
@@ -148,34 +96,7 @@ pub fn sanitize_for_filesystem(input: &str) -> String {
     while out.contains("--") {
         out = out.replace("--", "-");
     }
-    let out = out
-        .trim_start_matches('-')
-        .trim_end_matches(['.', ' ', '-']);
-    if out.is_empty() || out.chars().all(|c| c == '.') {
-        "branch".to_owned()
-    } else if is_windows_device_name(out) {
-        format!("_{out}")
-    } else {
-        out.to_owned()
-    }
-}
-
-fn is_windows_device_name(name: &str) -> bool {
-    let stem = name
-        .split('.')
-        .next()
-        .unwrap_or(name)
-        .trim_end_matches(' ')
-        .to_ascii_uppercase();
-    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || ["COM", "LPT"].iter().any(|prefix| {
-            stem.strip_prefix(prefix).is_some_and(|suffix| {
-                matches!(
-                    suffix,
-                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
-                )
-            })
-        })
+    out.trim_matches('-').to_owned()
 }
 
 fn short_hash(repo: &str, branch: &str) -> String {

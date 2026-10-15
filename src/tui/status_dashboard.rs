@@ -143,7 +143,7 @@ async fn refresh(app: &mut AppState, opts: &StatusDashboardOptions) -> anyhow::R
     let collector = StatusCollector::new(StatusCollectorOptions {
         include_process: opts.show_processes,
         fetch_remote: opts.fetch_remote,
-        stale_threshold: crate::core::status::stale_threshold(opts.stale_days),
+        stale_threshold: Duration::from_secs(opts.stale_days * 24 * 60 * 60),
         base_dir: opts.cfg.worktree.base_dir.clone(),
         concurrency: opts.cfg.status.concurrency,
     });
@@ -232,11 +232,12 @@ fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
             KeyCode::Backspace => {
                 app.filter_input.pop();
             }
-            KeyCode::Char(c)
+            KeyCode::Char(c) => {
                 if !key.modifiers.contains(KeyModifiers::CONTROL)
-                    && !key.modifiers.contains(KeyModifiers::ALT) =>
-            {
-                app.filter_input.push(c);
+                    && !key.modifiers.contains(KeyModifiers::ALT)
+                {
+                    app.filter_input.push(c);
+                }
             }
             _ => {}
         },

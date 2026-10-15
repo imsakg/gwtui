@@ -37,8 +37,10 @@ impl WorktreeManager {
         let out = self.git.list_worktrees_porcelain()?;
         let tmp_entries = parse_worktree_porcelain(&out);
 
+        let current_top = self.git.repo_root().to_path_buf();
+
         let mut worktrees = Vec::new();
-        for (index, entry) in tmp_entries.into_iter().enumerate() {
+        for entry in tmp_entries {
             let path = entry.path;
             let mut branch = entry.branch;
             let head = entry.head;
@@ -61,7 +63,7 @@ impl WorktreeManager {
                 path: path.clone(),
                 branch,
                 commit_hash: head,
-                is_main: index == 0,
+                is_main: path_buf == current_top,
                 created_at,
             });
         }
@@ -102,7 +104,14 @@ impl WorktreeManager {
         custom_path: Option<&Path>,
         create_branch: bool,
     ) -> Result<(), GwtuiError> {
-        let expanded = self.prepare_path(branch, custom_path)?;
+        let raw_path = if let Some(p) = custom_path {
+            p.to_string_lossy().to_string()
+        } else {
+            self.generate_worktree_path(branch)
+        };
+
+        let expanded =
+            config_util::expand_path(&raw_path).map_err(|e| GwtuiError::Other(e.to_string()))?;
 
         if custom_path.is_some() && !create_branch {
             // match gwq behavior: validate only when user supplies path and not forcing
@@ -127,7 +136,14 @@ impl WorktreeManager {
         base_branch: Option<&str>,
         custom_path: Option<&Path>,
     ) -> Result<PathBuf, GwtuiError> {
-        let expanded = self.prepare_path(branch, custom_path)?;
+        let raw_path = if let Some(p) = custom_path {
+            p.to_string_lossy().to_string()
+        } else {
+            self.generate_worktree_path(branch)
+        };
+
+        let expanded =
+            config_util::expand_path(&raw_path).map_err(|e| GwtuiError::Other(e.to_string()))?;
 
         if self.cfg.worktree.auto_mkdir
             && let Some(parent) = expanded.parent()
@@ -143,55 +159,8 @@ impl WorktreeManager {
         Ok(expanded)
     }
 
-    pub fn add_detached(&self, path: &Path, revision: Option<&str>) -> Result<(), GwtuiError> {
-        let path = self.absolute_path(path);
-        self.validate_worktree_path(&path)?;
-        if self.cfg.worktree.auto_mkdir
-            && let Some(parent) = path.parent()
-        {
-            std::fs::create_dir_all(parent).map_err(|source| GwtuiError::IoPath {
-                path: parent.to_path_buf(),
-                source,
-            })?;
-        }
-        self.git.add_detached_worktree(&path, revision)
-    }
-
     pub fn remove(&self, path: &Path, force: bool) -> Result<(), GwtuiError> {
-        self.ensure_not_main(path, "remove")?;
         self.git.remove_worktree(path, force)
-    }
-
-    fn ensure_not_main(&self, path: &Path, operation: &str) -> Result<(), GwtuiError> {
-        let target = self.absolute_path(path);
-        if let Some(main) = self.list()?.first()
-            && paths_equal(&target, Path::new(&main.path))
-        {
-            return Err(GwtuiError::Other(format!(
-                "cannot {operation} the main worktree"
-            )));
-        }
-        Ok(())
-    }
-
-    fn prepare_path(
-        &self,
-        branch: &str,
-        custom_path: Option<&Path>,
-    ) -> Result<PathBuf, GwtuiError> {
-        if let Some(path) = custom_path {
-            return Ok(self.absolute_path(path));
-        }
-        config_util::expand_path(&self.generate_worktree_path(branch))
-            .map_err(|error| GwtuiError::Other(error.to_string()))
-    }
-
-    fn absolute_path(&self, path: &Path) -> PathBuf {
-        if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            self.git.repo_root().join(path)
-        }
     }
 
     pub fn remove_with_branch(
@@ -202,100 +171,15 @@ impl WorktreeManager {
         delete_branch: bool,
         force_branch: bool,
     ) -> Result<(), GwtuiError> {
-        if delete_branch {
-            let target = self.absolute_path(path);
-            let worktree = self
-                .list()?
-                .into_iter()
-                .find(|wt| paths_equal(&target, Path::new(&wt.path)))
-                .ok_or_else(|| GwtuiError::WorktreeNotFound(path.display().to_string()))?;
-            if branch.is_empty() || worktree.branch != branch {
-                return Err(GwtuiError::Other(
-                    "branch does not match the worktree being removed".to_owned(),
-                ));
-            }
-        }
-        // Keep the Git command cwd alive even if this manager points at the checkout
-        // being removed. The first registration is the main repository.
-        let branch_git = if delete_branch {
-            let main = self
-                .list()?
-                .into_iter()
-                .find(|wt| wt.is_main)
-                .ok_or_else(|| GwtuiError::Other("main repository is unavailable".to_owned()))?;
-            Some(Git::new(PathBuf::from(main.path)))
-        } else {
-            None
-        };
-        self.remove(path, force_worktree)?;
-        if let Some(git) = branch_git {
-            git.delete_branch(branch, force_branch)?;
+        self.git.remove_worktree(path, force_worktree)?;
+        if delete_branch && !branch.is_empty() {
+            self.git.delete_branch(branch, force_branch)?;
         }
         Ok(())
     }
 
-    pub fn lock(&self, path: &Path, reason: Option<&str>) -> Result<(), GwtuiError> {
-        self.git.lock_worktree(path, reason)
-    }
-
-    pub fn unlock(&self, path: &Path) -> Result<(), GwtuiError> {
-        self.git.unlock_worktree(path)
-    }
-
-    pub fn move_worktree(&self, source: &Path, destination: &Path) -> Result<(), GwtuiError> {
-        self.ensure_not_main(source, "move")?;
-        let destination = self.absolute_path(destination);
-        self.validate_worktree_path(&destination)?;
-        self.git.move_worktree(source, &destination)
-    }
-
-    pub fn repair(&self, paths: &[PathBuf]) -> Result<(), GwtuiError> {
-        self.git.repair_worktrees(paths)
-    }
-
     pub fn prune(&self) -> Result<(), GwtuiError> {
         self.git.prune_worktrees()
-    }
-
-    pub fn prune_with_options(
-        &self,
-        dry_run: bool,
-        expire: Option<&str>,
-    ) -> Result<String, GwtuiError> {
-        self.git.prune_worktrees_with_options(dry_run, expire)
-    }
-
-    pub fn resolve(&self, pattern: &str) -> Result<Worktree, GwtuiError> {
-        if pattern.trim().is_empty() || pattern.contains('\0') {
-            return Err(GwtuiError::WorktreeNotFound(pattern.to_owned()));
-        }
-        let worktrees = self.list()?;
-        let exact: Vec<_> = worktrees
-            .iter()
-            .filter(|wt| wt.branch == pattern || wt.path == pattern)
-            .collect();
-        match exact.as_slice() {
-            [worktree] => return Ok((*worktree).clone()),
-            [] => {}
-            _ => return Err(GwtuiError::AmbiguousWorktree(pattern.to_owned())),
-        }
-        let path = self.absolute_path(Path::new(pattern));
-        if let Some(worktree) = worktrees
-            .iter()
-            .find(|wt| paths_equal(&path, Path::new(&wt.path)))
-        {
-            return Ok(worktree.clone());
-        }
-        let pattern_lower = pattern.to_lowercase();
-        let mut matches = worktrees.into_iter().filter(|wt| {
-            wt.branch.to_lowercase().contains(&pattern_lower)
-                || wt.path.to_lowercase().contains(&pattern_lower)
-        });
-        match (matches.next(), matches.next()) {
-            (Some(worktree), None) => Ok(worktree),
-            (None, _) => Err(GwtuiError::WorktreeNotFound(pattern.to_owned())),
-            _ => Err(GwtuiError::AmbiguousWorktree(pattern.to_owned())),
-        }
     }
 
     pub fn get_matching_worktrees(&self, pattern: &str) -> Result<Vec<Worktree>, GwtuiError> {
@@ -363,7 +247,8 @@ fn parse_worktree_porcelain(out: &str) -> Vec<PorcelainEntry> {
     let mut cur_branch = String::new();
     let mut cur_head = String::new();
 
-    for line in out.split('\0') {
+    for line in out.lines() {
+        let line = line.trim_end();
         if let Some(path) = line.strip_prefix("worktree ") {
             if let Some(p) = cur_path.take() {
                 entries.push(PorcelainEntry {
@@ -377,11 +262,11 @@ fn parse_worktree_porcelain(out: &str) -> Vec<PorcelainEntry> {
             cur_path = Some(path.to_owned());
         } else if let Some(branch) = line.strip_prefix("branch ") {
             branch
-                .strip_prefix("refs/heads/")
-                .unwrap_or(branch)
+                .trim()
+                .trim_start_matches("refs/heads/")
                 .clone_into(&mut cur_branch);
         } else if let Some(head) = line.strip_prefix("HEAD ") {
-            head.clone_into(&mut cur_head);
+            head.trim().clone_into(&mut cur_head);
         }
     }
     if let Some(p) = cur_path.take() {
@@ -415,7 +300,7 @@ HEAD 3333333333333333333333333333333333333333
 detached
 "#;
 
-        let entries = parse_worktree_porcelain(&out.replace('\n', "\0"));
+        let entries = parse_worktree_porcelain(out);
         assert_eq!(entries.len(), 3);
         assert_eq!(
             entries[0],
@@ -428,10 +313,6 @@ detached
         assert_eq!(entries[1].branch, "feature/test");
         assert_eq!(entries[2].branch, "");
     }
-}
-
-fn paths_equal(left: &Path, right: &Path) -> bool {
-    left == right || matches!((left.canonicalize(), right.canonicalize()), (Ok(a), Ok(b)) if a == b)
 }
 
 fn system_time_to_rfc3339(t: std::time::SystemTime) -> Option<String> {

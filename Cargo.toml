@@ -33,3 +33,8 @@ uuid = { version = "1.12.1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 tempfile = "3.15.0"
+
+[package]
+name = "gwtui"
+version = "0.1.0"
+edition = "2024"

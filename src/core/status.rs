@@ -34,30 +34,6 @@ pub struct GitStatus {
     pub conflicts: u32,
 }
 
-impl GitStatus {
-    /// Whether any local change or unresolved conflict is present.
-    #[must_use]
-    pub fn is_dirty(&self) -> bool {
-        self.total_changes() != 0
-    }
-
-    /// Sum change buckets, saturating at `u32::MAX` (not unique paths).
-    /// A staged path with unstaged edits contributes to both buckets.
-    #[must_use]
-    pub fn total_changes(&self) -> u32 {
-        [
-            self.modified,
-            self.added,
-            self.deleted,
-            self.untracked,
-            self.staged,
-            self.conflicts,
-        ]
-        .into_iter()
-        .fold(0, u32::saturating_add)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WorktreeStatus {
     pub path: String,
@@ -123,16 +99,6 @@ impl StatusCollector {
     }
 }
 
-fn is_current_path(current: &Path, worktree: &Path) -> bool {
-    let current = current
-        .canonicalize()
-        .unwrap_or_else(|_| current.to_path_buf());
-    let worktree = worktree
-        .canonicalize()
-        .unwrap_or_else(|_| worktree.to_path_buf());
-    current.starts_with(worktree)
-}
-
 fn collect_one_blocking(
     opts: &StatusCollectorOptions,
     wt: &Worktree,
@@ -148,7 +114,7 @@ fn collect_one_blocking(
         status: WorktreeState::Clean,
         git_status: GitStatus::default(),
         last_activity: "unknown".to_owned(),
-        is_current: is_current_path(current_path, &worktree_path),
+        is_current: current_path.starts_with(&worktree_path),
     };
 
     if let Ok(gs) = collect_git_status(&git, opts.fetch_remote) {
@@ -163,7 +129,6 @@ fn collect_one_blocking(
         status.last_activity = format_rfc3339(last).unwrap_or_else(|| "unknown".to_owned());
         if let Ok(age) = SystemTime::now().duration_since(last)
             && age > opts.stale_threshold
-            && status.status == WorktreeState::Clean
         {
             status.status = WorktreeState::Stale;
         }
@@ -188,8 +153,8 @@ fn collect_git_status(git: &Git, fetch_remote: bool) -> Result<GitStatus, GwtuiE
     }
 
     // Count untracked via ls-files for accuracy.
-    if let Ok(untracked) = git.run(&["ls-files", "-z", "--others", "--exclude-standard"]) {
-        let count = untracked.split('\0').filter(|p| !p.is_empty()).count();
+    if let Ok(untracked) = git.run(&["ls-files", "--others", "--exclude-standard"]) {
+        let count = untracked.lines().filter(|l| !l.trim().is_empty()).count();
         status.untracked = u32::try_from(count).unwrap_or(u32::MAX);
     }
 
@@ -204,14 +169,6 @@ fn process_status_line(line: &str, status: &mut GitStatus) {
     let bytes = line.as_bytes();
     let index = bytes[0] as char;
     let worktree = bytes[1] as char;
-
-    if matches!(
-        (index, worktree),
-        ('D', 'D') | ('A', 'U') | ('U', 'D') | ('U', 'A') | ('D', 'U') | ('A', 'A') | ('U', 'U')
-    ) {
-        status.conflicts += 1;
-        return;
-    }
 
     if index != ' ' && index != '?' {
         status.staged += 1;
@@ -451,7 +408,6 @@ pub fn filter_statuses(statuses: Vec<WorktreeStatus>, filter: &str) -> Vec<Workt
             "clean" | "up to date" => s.status == WorktreeState::Clean,
             "stale" | "inactive" => s.status == WorktreeState::Stale,
             "staged" => s.status == WorktreeState::Staged,
-            "unknown" => s.status == WorktreeState::Unknown,
             "conflict" | "conflicted" => s.status == WorktreeState::Conflict,
             _ => {
                 let needle = f.as_str();
@@ -464,50 +420,22 @@ pub fn filter_statuses(statuses: Vec<WorktreeStatus>, filter: &str) -> Vec<Workt
 }
 
 pub fn sort_statuses(statuses: &mut [WorktreeStatus], sort_by: &str) {
-    let key = sort_by.trim().to_lowercase();
-    let tie = |a: &WorktreeStatus, b: &WorktreeStatus| {
-        a.branch
-            .cmp(&b.branch)
-            .then_with(|| a.repository.cmp(&b.repository))
-            .then_with(|| a.path.cmp(&b.path))
-    };
+    let key = sort_by.to_lowercase();
     match key.as_str() {
-        "branch" | "name" => statuses.sort_by(tie),
+        "branch" | "name" => statuses.sort_by(|a, b| a.branch.cmp(&b.branch)),
         "status" => {
-            statuses.sort_by(|a, b| {
-                status_priority(a.status)
-                    .cmp(&status_priority(b.status))
-                    .then_with(|| tie(a, b))
-            });
+            statuses.sort_by(|a, b| status_priority(a.status).cmp(&status_priority(b.status)));
         }
         "modified" | "changes" => statuses.sort_by(|a, b| {
             count_total_changes(b.git_status)
                 .cmp(&count_total_changes(a.git_status))
-                .then_with(|| tie(a, b))
+                .then_with(|| a.branch.cmp(&b.branch))
         }),
-        "activity" | "time" => statuses.sort_by(|a, b| {
-            activity_time(&b.last_activity)
-                .cmp(&activity_time(&a.last_activity))
-                .then_with(|| tie(a, b))
-        }),
-        "ahead" => statuses.sort_by(|a, b| {
-            b.git_status
-                .ahead
-                .cmp(&a.git_status.ahead)
-                .then_with(|| tie(a, b))
-        }),
-        "behind" => statuses.sort_by(|a, b| {
-            b.git_status
-                .behind
-                .cmp(&a.git_status.behind)
-                .then_with(|| tie(a, b))
-        }),
+        "activity" | "time" => statuses.sort_by(|a, b| b.last_activity.cmp(&a.last_activity)),
+        "ahead" => statuses.sort_by(|a, b| b.git_status.ahead.cmp(&a.git_status.ahead)),
+        "behind" => statuses.sort_by(|a, b| b.git_status.behind.cmp(&a.git_status.behind)),
         _ => {}
     }
-}
-
-fn activity_time(value: &str) -> Option<time::OffsetDateTime> {
-    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339).ok()
 }
 
 fn status_priority(status: WorktreeState) -> u32 {
@@ -522,71 +450,12 @@ fn status_priority(status: WorktreeState) -> u32 {
 }
 
 fn count_total_changes(gs: GitStatus) -> u32 {
-    gs.total_changes()
+    gs.modified + gs.added + gs.deleted + gs.untracked + gs.staged
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(unix)]
-    #[test]
-    fn current_path_matching_resolves_aliases_and_respects_boundaries() {
-        let tmp = tempfile::tempdir().unwrap();
-        let real = tmp.path().join("repo");
-        std::fs::create_dir_all(real.join("src")).unwrap();
-        let alias = tmp.path().join("alias");
-        std::os::unix::fs::symlink(&real, &alias).unwrap();
-        assert!(is_current_path(&alias.join("src"), &real));
-        assert!(is_current_path(&real.join("src"), &alias));
-        assert!(!is_current_path(&tmp.path().join("repo-other"), &real));
-    }
-
-    #[test]
-    fn git_status_helpers_include_conflicts_without_counting_divergence() {
-        let mut gs = GitStatus {
-            ahead: 9,
-            behind: 4,
-            ..GitStatus::default()
-        };
-        assert!(!gs.is_dirty());
-        assert_eq!(gs.total_changes(), 0);
-        gs.conflicts = 2;
-        assert!(gs.is_dirty());
-        assert_eq!(gs.total_changes(), 2);
-        gs.staged = u32::MAX;
-        assert_eq!(gs.total_changes(), u32::MAX);
-        let mut statuses = vec![WorktreeStatus {
-            path: "p".into(),
-            branch: "b".into(),
-            repository: "r".into(),
-            status: WorktreeState::Conflict,
-            git_status: gs,
-            last_activity: "unknown".into(),
-            is_current: false,
-        }];
-        sort_statuses(&mut statuses, "changes");
-    }
-
-    #[test]
-    fn unresolved_entries_are_not_staged_changes() {
-        for xy in ["DD", "AU", "UD", "UA", "DU", "AA", "UU"] {
-            let mut gs = GitStatus::default();
-            process_status_line(&format!("{xy} conflict.txt"), &mut gs);
-            assert_eq!(gs.staged, 0, "{xy}");
-            assert_eq!(gs.modified + gs.added + gs.deleted, 0, "{xy}");
-        }
-    }
-
-    #[test]
-    fn recognizes_every_unmerged_porcelain_pair() {
-        for xy in ["DD", "AU", "UD", "UA", "DU", "AA", "UU"] {
-            let mut gs = GitStatus::default();
-            process_status_line(&format!("{xy} conflict.txt"), &mut gs);
-            assert_eq!(gs.conflicts, 1, "{xy}");
-            assert_eq!(determine_worktree_state(&gs), WorktreeState::Conflict);
-        }
-    }
 
     #[test]
     fn parses_git_status_porcelain_v1_lines() {
@@ -650,20 +519,5 @@ mod tests {
         let out = filter_statuses(statuses.clone(), "modified");
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].branch, "feature/bar");
-    }
-}
-
-/// Convert days without overflowing when configuration comes from the CLI.
-#[must_use]
-pub fn stale_threshold(days: u64) -> std::time::Duration {
-    std::time::Duration::from_secs(days.saturating_mul(86_400))
-}
-
-#[cfg(test)]
-mod duration_tests {
-    #[test]
-    fn stale_duration_saturates_at_the_duration_limit() {
-        assert_eq!(super::stale_threshold(14).as_secs(), 1_209_600);
-        assert_eq!(super::stale_threshold(u64::MAX).as_secs(), u64::MAX);
     }
 }

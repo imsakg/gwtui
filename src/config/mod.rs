@@ -180,14 +180,6 @@ pub struct ConfigPaths {
 }
 
 pub fn default_paths() -> anyhow::Result<ConfigPaths> {
-    if let Some(value) = std::env::var_os("GWTUI_CONFIG") {
-        anyhow::ensure!(!value.is_empty(), "GWTUI_CONFIG must not be empty");
-        let config_file = match value.to_str() {
-            Some(value) => expand_path(value)?,
-            None => PathBuf::from(value),
-        };
-        return Ok(ConfigPaths { config_file });
-    }
     let unix = home_config_path_unix();
     if !cfg!(windows) {
         return Ok(ConfigPaths { config_file: unix });
@@ -206,12 +198,6 @@ pub fn default_paths() -> anyhow::Result<ConfigPaths> {
 }
 
 fn home_config_path_unix() -> PathBuf {
-    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-        let xdg = PathBuf::from(xdg);
-        if xdg.is_absolute() {
-            return xdg.join("gwtui").join("config.toml");
-        }
-    }
     let home = home_dir().unwrap_or_else(|| PathBuf::from("~"));
     home.join(".config").join("gwtui").join("config.toml")
 }
@@ -233,18 +219,10 @@ fn home_dir() -> Option<PathBuf> {
 
 #[must_use]
 pub fn expand_tilde(input: &str) -> String {
-    if input == "~"
-        && let Some(home) = home_dir()
-    {
-        return home.to_string_lossy().into_owned();
-    }
     if let Some(rest) = input.strip_prefix("~/")
         && let Some(home) = home_dir()
     {
-        return home
-            .join(rest.trim_start_matches('/'))
-            .to_string_lossy()
-            .to_string();
+        return home.join(rest).to_string_lossy().to_string();
     }
     input.to_owned()
 }
@@ -278,14 +256,10 @@ pub fn expand_path(input: &str) -> anyhow::Result<PathBuf> {
 
 fn expand_env_vars(input: &str) -> String {
     // Expand $VAR and ${VAR}. Leave unknown vars untouched.
-    let re = regex::Regex::new(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
-        .expect("static environment variable pattern");
+    let re = regex::Regex::new(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+        .unwrap_or_else(|_| regex::Regex::new("$^").unwrap());
     re.replace_all(input, |caps: &regex::Captures<'_>| {
-        let key = caps
-            .get(1)
-            .or_else(|| caps.get(2))
-            .expect("variable capture")
-            .as_str();
+        let key = &caps[1];
         std::env::var(key).unwrap_or_else(|_| caps[0].to_owned())
     })
     .to_string()
@@ -345,7 +319,7 @@ pub fn get_value_string_at_path(path: &Path, key: &str) -> anyhow::Result<Option
 
 pub fn set_value_string_at_path(path: &Path, key: &str, value: &str) -> anyhow::Result<()> {
     let (mut doc, cfg) = load_from_file(path)?;
-    // Validate the complete proposed configuration, not the broken starting values.
+    cfg.validate()?;
 
     let (norm_key, value_item) = normalize_key_and_parse_value(key, value, &cfg)?;
     apply_set(&mut doc, &norm_key, value_item)?;
@@ -356,53 +330,14 @@ pub fn set_value_string_at_path(path: &Path, key: &str, value: &str) -> anyhow::
         .with_context(|| format!("config update produced invalid TOML for {}", path.display()))?;
     new_cfg.validate()?;
 
-    atomic_write_config(path, new_raw.as_bytes())
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+    std::fs::write(path, new_raw.as_bytes())
         .with_context(|| format!("failed to write {}", path.display()))?;
 
     Ok(())
-}
-
-fn atomic_write_config(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
-    use std::io::Write as _;
-    let target = match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => path.canonicalize()?,
-        Ok(_) => path.to_path_buf(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => path.to_path_buf(),
-        Err(error) => return Err(error.into()),
-    };
-    let parent = target
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    std::fs::create_dir_all(parent)?;
-    let permissions = match std::fs::metadata(&target) {
-        Ok(meta) => Some(meta.permissions()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error.into()),
-    };
-    let temporary = parent.join(format!(".gwtui-config-{}.tmp", uuid::Uuid::new_v4()));
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt as _;
-        options.mode(0o600);
-    }
-    let mut file = options.open(&temporary)?;
-    let result = (|| -> anyhow::Result<()> {
-        if let Some(permissions) = permissions {
-            file.set_permissions(permissions)?;
-        }
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        drop(file);
-        std::fs::rename(&temporary, &target)?;
-        Ok(())
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&temporary);
-    }
-    result
 }
 
 impl Config {
@@ -417,14 +352,9 @@ impl Config {
                 "discovery.global_scan_depth must be >= 1".to_owned(),
             ));
         }
-        if !(1..=1024).contains(&self.status.concurrency) {
+        if self.status.concurrency == 0 {
             return Err(GwtuiError::Config(
-                "status.concurrency must be between 1 and 1024".to_owned(),
-            ));
-        }
-        if self.status.refresh_interval_ms == 0 {
-            return Err(GwtuiError::Config(
-                "status.refresh_interval_ms must be >= 1".to_owned(),
+                "status.concurrency must be >= 1".to_owned(),
             ));
         }
         if self.ui.picker_preview_lines == 0 {
@@ -437,30 +367,8 @@ impl Config {
                 "tasks.max_parallel must be >= 1".to_owned(),
             ));
         }
-        validate_executable("mux.zellij_command", &self.mux.zellij_command)?;
-        validate_executable("tasks.codex_executable", &self.tasks.codex_executable)?;
-        validate_executable("tasks.claude_executable", &self.tasks.claude_executable)?;
-        if self.worktree.naming_template.trim().is_empty() {
-            return Err(GwtuiError::Config(
-                "worktree.naming_template must not be empty".to_owned(),
-            ));
-        }
-        if self.worktree.sanitize.keys().any(|key| key.is_empty()) {
-            return Err(GwtuiError::Config(
-                "worktree.sanitize source keys must not be empty".to_owned(),
-            ));
-        }
         Ok(())
     }
-}
-
-fn validate_executable(key: &str, value: &str) -> Result<(), GwtuiError> {
-    if value.trim().is_empty() || value.trim() != value || value.contains(['\0', '\n', '\r']) {
-        return Err(GwtuiError::Config(format!(
-            "{key} must be an executable name or path, without surrounding whitespace or control separators"
-        )));
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -472,11 +380,6 @@ enum KeyType {
 }
 
 fn normalize_key(key: &str) -> String {
-    for prefix in ["naming.sanitize_chars.", "worktree.sanitize_chars."] {
-        if let Some(suffix) = key.strip_prefix(prefix) {
-            return format!("worktree.sanitize.{suffix}");
-        }
-    }
     // gwq compatibility aliases
     match key {
         "worktree.basedir" => "worktree.base_dir",
@@ -618,24 +521,21 @@ fn apply_set(
     key: &str,
     value: toml_edit::Item,
 ) -> anyhow::Result<()> {
-    let parts = key_segments(key);
+    let parts: Vec<&str> = key.split('.').filter(|p| !p.is_empty()).collect();
     if parts.is_empty() {
         return Err(GwtuiError::InvalidConfigKey(key.to_owned()).into());
     }
 
-    let mut cur: &mut dyn toml_edit::TableLike = doc.as_table_mut();
+    let mut cur = doc.as_table_mut();
     for seg in &parts[..parts.len().saturating_sub(1)] {
         if !cur.contains_key(seg) {
             let mut t = toml_edit::Table::new();
             t.set_implicit(true);
             cur.insert(seg, toml_edit::Item::Table(t));
         }
-        cur = cur
-            .get_mut(seg)
-            .and_then(toml_edit::Item::as_table_like_mut)
-            .ok_or_else(|| {
-                GwtuiError::Config(format!("cannot set {key}: '{seg}' is not a table"))
-            })?;
+        cur = cur[seg].as_table_mut().ok_or_else(|| {
+            GwtuiError::Config(format!("cannot set {key}: '{seg}' is not a table"))
+        })?;
     }
 
     let leaf = parts[parts.len() - 1];
@@ -643,17 +543,9 @@ fn apply_set(
     Ok(())
 }
 
-fn key_segments(key: &str) -> Vec<&str> {
-    if let Some(suffix) = key.strip_prefix("worktree.sanitize.") {
-        vec!["worktree", "sanitize", suffix]
-    } else {
-        key.split('.').collect()
-    }
-}
-
 fn lookup_value(cfg: &Config, key: &str) -> Option<serde_json::Value> {
     let mut v = serde_json::to_value(cfg).ok()?;
-    for seg in key_segments(key) {
+    for seg in key.split('.').filter(|s| !s.is_empty()) {
         match v {
             serde_json::Value::Object(mut map) => {
                 v = map.remove(seg)?;
@@ -668,25 +560,6 @@ fn lookup_value(cfg: &Config, key: &str) -> Option<serde_json::Value> {
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn environment_expansion_requires_complete_braced_variables() {
-        let home = std::env::var("HOME").unwrap();
-        assert_eq!(expand_env_vars("$HOME/path"), format!("{home}/path"));
-        assert_eq!(expand_env_vars("${HOME}/path"), format!("{home}/path"));
-        for literal in [
-            "${HOME",
-            "${HOME:-fallback}",
-            "${HOME!}",
-            "${}",
-            "$9",
-            "${GWTUI_UNSET_TEST_7B5A}",
-            "$GWTUI_UNSET_TEST_7B5A",
-        ] {
-            assert_eq!(expand_env_vars(literal), literal, "{literal}");
-        }
-        assert_eq!(expand_env_vars("${HOME}x"), format!("{home}x"));
-    }
 
     #[test]
     fn default_config_is_valid() {

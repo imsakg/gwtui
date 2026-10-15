@@ -26,12 +26,7 @@ impl Table {
     }
 
     pub fn write_csv(&self) -> io::Result<()> {
-        self.write_csv_to(io::stdout().lock())
-    }
-
-    /// Write lossless machine CSV to an arbitrary output sink.
-    pub fn write_csv_to(&self, out: impl io::Write) -> io::Result<()> {
-        let mut wtr = csv::Writer::from_writer(out);
+        let mut wtr = csv::Writer::from_writer(io::stdout().lock());
         wtr.write_record(&self.headers)?;
         for row in &self.rows {
             wtr.write_record(row)?;
@@ -40,8 +35,7 @@ impl Table {
         Ok(())
     }
 
-    /// Render a human table into any writer without acquiring stdout.
-    pub fn write_to(&self, mut out: impl io::Write) -> io::Result<()> {
+    fn write_to(&self, mut out: impl io::Write) -> io::Result<()> {
         let mut widths = vec![0usize; self.headers.len()];
         for (i, h) in self.headers.iter().enumerate() {
             widths[i] = widths[i].max(visible_width(h));
@@ -63,20 +57,9 @@ impl Table {
     }
 }
 
-fn display_cell(s: &str) -> String {
-    s.chars()
-        .flat_map(|c| {
-            if c.is_control() {
-                c.escape_default().collect::<Vec<_>>()
-            } else {
-                vec![c]
-            }
-        })
-        .collect()
-}
-
 fn visible_width(s: &str) -> usize {
-    ratatui::text::Line::raw(display_cell(s)).width()
+    // Best-effort: assume each char is width 1. Ratatui UI handles widths separately.
+    s.chars().count()
 }
 
 fn format_row(row: &[String], widths: &[usize]) -> String {
@@ -89,7 +72,7 @@ fn format_row(row: &[String], widths: &[usize]) -> String {
             .get(i)
             .copied()
             .unwrap_or_else(|| visible_width(cell));
-        out.push_str(&display_cell(cell));
+        out.push_str(cell);
         let pad = w.saturating_sub(visible_width(cell));
         for _ in 0..pad {
             out.push(' ');

@@ -2884,11 +2884,12 @@ fn handle_text_input_key(key: KeyEvent, input: &mut TextInput) {
         KeyCode::Right => input.move_right(),
         KeyCode::Home => input.move_home(),
         KeyCode::End => input.move_end(),
-        KeyCode::Char(c)
+        KeyCode::Char(c) => {
             if !key.modifiers.contains(KeyModifiers::CONTROL)
-                && !key.modifiers.contains(KeyModifiers::ALT) =>
-        {
-            input.insert_char(c);
+                && !key.modifiers.contains(KeyModifiers::ALT)
+            {
+                input.insert_char(c);
+            }
         }
         _ => {}
     }

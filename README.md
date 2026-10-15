@@ -2,6 +2,7 @@
 
 ![tui-screenshot](assets/tui.jpg)
 
+<<<<<<< HEAD
 Rust + Ratatui worktree manager inspired by `gwq`, with a scriptable lifecycle CLI, status dashboard, tasks, and a **Zellij** mux backend.
 
 Key points:
@@ -131,6 +132,121 @@ Config file:
 
 - Explicit override: `GWTUI_CONFIG` (see `gwtui config path`)
 - macOS/Linux: `$XDG_CONFIG_HOME/gwtui/config.toml`, otherwise `~/.config/gwtui/config.toml`
+||||||| empty tree
+=======
+Production-grade Rust + Ratatui reimplementation inspired by `gwq` (worktrees + status + tasks), with **CLI compatibility** and a modern mux backend (**Zellij**).
+
+Key points:
+
+- Binary: `gwtui`
+- Rust edition: 2024, no `unsafe`
+- Shells out to `git` (git is the source of truth)
+- Interactive UI only when stdout is a TTY
+- `gwtui tmux ...` is a **compatibility alias** that routes to Zellij
+
+## Install / Build
+
+From the repo:
+
+```bash
+cargo build --release
+./target/release/gwtui --help
+```
+
+Running with no arguments opens the main TUI on a TTY (and prints a single status table in non-TTY contexts):
+
+```bash
+gwtui
+```
+
+## Quickstart
+
+All examples below assume `gwtui` is on your `PATH`. If you just built from source, use `./target/release/gwtui` instead.
+
+### TUI (interactive)
+
+Open the main multi-tab UI:
+
+```bash
+gwtui
+```
+
+Useful first keys:
+
+- `a` add a worktree (interactive)
+- `/` filter/search
+- `:` command palette (run any `gwtui` CLI subcommand)
+- `q` quit
+
+### CLI (common workflows)
+
+Create a new worktree for a new feature branch (from inside a git repo):
+
+```bash
+gwtui add -b feature/auth
+```
+
+List worktrees (local to the current repo, or global from `worktree.base_dir`):
+
+```bash
+gwtui list
+gwtui list -g
+```
+
+Jump into a worktree directory:
+
+```bash
+cd "$(gwtui get feature/auth)"
+```
+
+Watch status in an interactive dashboard:
+
+```bash
+gwtui status --watch
+gwtui status -g --watch
+```
+
+Run a command inside a worktree (note the required `--` separator):
+
+```bash
+gwtui exec feature/auth -- cargo test
+gwtui exec -g feature/auth -- cargo test
+```
+
+### Zellij / tmux (mux backend)
+
+From inside a Zellij session (or with exactly one active session):
+
+```bash
+gwtui zellij list
+gwtui zellij run -w feature/auth -- cargo test
+gwtui zellij attach -i
+```
+
+## CLI (gwq-compatible)
+
+Commands:
+
+- `gwtui add [-b] [-i] [-f] <branch> [path]`
+- `gwtui list [-v] [--json] [-g]`
+- `gwtui get [-g] [-0] [pattern]`
+- `gwtui exec [gwq-compatible flags...] -- <cmd...>`
+- `gwtui remove|rm [-f] [-d] [-g] [-b] [--force-delete-branch] [pattern]`
+- `gwtui status [-g] [-v] [--json|--csv] [--watch] [--filter ...] [--sort ...]`
+- `gwtui prune`
+- `gwtui config list|set|get`
+- `gwtui completion <shell>`
+- `gwtui tmux list|run|attach|kill` (routes to Zellij)
+- `gwtui zellij list|run|attach|kill` (same as `tmux`)
+- `gwtui task add|list|show|logs|worker`
+- `gwtui version` / global `--version`
+
+## Configuration (TOML)
+
+Config file:
+
+- macOS/Linux: `~/.config/gwtui/config.toml`
+>>>>>>> origin/main
 - Windows: platform config dir (also honors the Unix path if present)
 
 Resolved config:

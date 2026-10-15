@@ -1,8 +1,5 @@
 #![forbid(unsafe_code)]
 
-mod inspect;
-mod lifecycle;
-
 use std::ffi::OsString;
 use std::fmt::Write as _;
 use std::path::Path;
@@ -36,9 +33,6 @@ use crate::tui::status_dashboard::StatusDashboardOptions;
     about = "Git worktree manager (gwq-compatible)"
 )]
 pub struct Cli {
-    /// Run in this directory (like git -C); specify before the subcommand
-    #[arg(short = 'C', long = "repo")]
-    pub repo: Option<PathBuf>,
     #[command(subcommand)]
     pub cmd: Option<Commands>,
 }
@@ -52,39 +46,17 @@ pub enum Commands {
     #[command(alias = "rm")]
     Remove(RemoveArgs),
     Status(StatusArgs),
-    Prune(lifecycle::PruneArgs),
-    /// Protect a linked worktree from pruning
-    Lock(lifecycle::LockArgs),
-    /// Release a worktree lock
-    Unlock(lifecycle::SelectorArgs),
-    /// Move a linked worktree and update Git metadata
-    #[command(alias = "mv")]
-    Move(lifecycle::MoveArgs),
-    /// Repair registrations after moving checkouts externally
-    Repair(lifecycle::RepairArgs),
+    Prune,
     Config(ConfigArgs),
     Completion(CompletionArgs),
     Tmux(MuxArgs),
     Zellij(MuxArgs),
     Task(TaskArgs),
-    /// Inspect local tooling, configuration and repository health
-    Doctor(inspect::DoctorArgs),
-    /// Inspect branches and their last commit without fetching
-    Branches(inspect::BranchArgs),
     Version,
 }
 
 #[derive(Debug, Parser)]
 pub struct AddArgs {
-    /// Print only the created path, for shell command substitution
-    #[arg(long)]
-    pub print_path: bool,
-    /// Create a detached checkout; the positional argument is its path
-    #[arg(long, conflicts_with_all = ["branch", "base", "interactive"])]
-    pub detach: bool,
-    /// Commit to check out with --detach (defaults to HEAD)
-    #[arg(long, requires = "detach")]
-    pub revision: Option<String>,
     /// Create new branch
     #[arg(short = 'b', long = "branch")]
     pub branch: bool,
@@ -94,9 +66,6 @@ pub struct AddArgs {
     /// Overwrite existing directory
     #[arg(short = 'f', long = "force")]
     pub force: bool,
-    /// Start a new branch at this commit (requires -b)
-    #[arg(long, requires = "branch")]
-    pub base: Option<String>,
     /// Branch name
     pub branch_name: Option<String>,
     /// Optional path
@@ -105,24 +74,6 @@ pub struct AddArgs {
 
 #[derive(Debug, Parser)]
 pub struct ListArgs {
-    /// Show existing detached checkouts (branch is HEAD)
-    #[arg(long)]
-    pub detached: bool,
-    /// Exclude the main repository checkout
-    #[arg(long)]
-    pub linked: bool,
-    /// Deterministic ordering; default keeps Git's main-first order
-    #[arg(long, value_parser = ["branch", "path"])]
-    pub sort: Option<String>,
-    /// Case-insensitive branch/path substring
-    #[arg(long)]
-    pub filter: Option<String>,
-    /// Terminate --paths records with NUL instead of newline
-    #[arg(short = '0', long = "null", requires = "paths")]
-    pub null_terminate: bool,
-    /// Print one worktree path per line
-    #[arg(long, conflicts_with = "json")]
-    pub paths: bool,
     /// Show detailed information
     #[arg(short = 'v', long = "verbose")]
     pub verbose: bool,
@@ -170,7 +121,7 @@ pub struct RemoveArgs {
     #[arg(short = 'b', long = "delete-branch")]
     pub delete_branch: bool,
     /// Force delete the branch even if not merged
-    #[arg(long = "force-delete-branch", requires = "delete_branch")]
+    #[arg(long = "force-delete-branch")]
     pub force_delete_branch: bool,
     /// Pattern
     pub pattern: Option<String>,
@@ -183,7 +134,7 @@ pub struct StatusArgs {
     #[arg(short = 'w', long = "watch")]
     pub watch: bool,
     /// Refresh interval in seconds for watch mode
-    #[arg(short = 'i', long = "interval", default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..))]
+    #[arg(short = 'i', long = "interval", default_value_t = 5)]
     pub interval_seconds: u64,
     /// Filter by status (changed, up to date, inactive)
     #[arg(short = 'f', long = "filter", default_value = "")]
@@ -192,10 +143,10 @@ pub struct StatusArgs {
     #[arg(short = 's', long = "sort", default_value = "")]
     pub sort: String,
     /// Output as JSON
-    #[arg(long = "json", conflicts_with_all = ["csv", "watch"])]
+    #[arg(long = "json")]
     pub json: bool,
     /// Output as CSV
-    #[arg(long = "csv", conflicts_with = "watch")]
+    #[arg(long = "csv")]
     pub csv: bool,
     /// Show additional information
     #[arg(short = 'v', long = "verbose")]
@@ -227,20 +178,9 @@ pub struct ConfigArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCmd {
-    /// Validate effective configuration without writing defaults
-    Check,
-    /// Show the resolved configuration file without writing it
-    Path,
-    List(ConfigListArgs),
+    List,
     Set(ConfigSetArgs),
     Get(ConfigGetArgs),
-}
-
-#[derive(Debug, Parser)]
-pub struct ConfigListArgs {
-    /// Emit effective settings as JSON instead of TOML
-    #[arg(long)]
-    pub json: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -471,10 +411,6 @@ pub async fn main() -> ExitCode {
 }
 
 async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
-    if let Some(repo) = &cli.repo {
-        std::env::set_current_dir(repo)
-            .with_context(|| format!("cannot enter {}", repo.display()))?;
-    }
     match cli.cmd {
         None => cmd_default().await,
         Some(Commands::Completion(args)) => {
@@ -483,23 +419,8 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Some(Commands::Config(args)) => match args.cmd {
-            ConfigCmd::Check => {
-                let (cfg, _, paths) = config::load()?;
-                cfg.validate()?;
-                println!("Configuration valid: {}", paths.config_file.display());
-                Ok(ExitCode::SUCCESS)
-            }
-            ConfigCmd::Path => {
-                println!("{}", config::default_paths()?.config_file.display());
-                Ok(ExitCode::SUCCESS)
-            }
-            ConfigCmd::List(args) => {
-                if args.json {
-                    let (cfg, _, _) = config::load()?;
-                    println!("{}", serde_json::to_string_pretty(&cfg)?);
-                } else {
-                    print!("{}", config::list_resolved_toml()?);
-                }
+            ConfigCmd::List => {
+                print!("{}", config::list_resolved_toml()?);
                 Ok(ExitCode::SUCCESS)
             }
             ConfigCmd::Set(set) => {
@@ -526,17 +447,11 @@ async fn run(cli: Cli, raw_args: Vec<OsString>) -> anyhow::Result<ExitCode> {
         Some(Commands::Get(args)) => cmd_get(args).await,
         Some(Commands::Exec(args)) => cmd_exec(args, &raw_args).await,
         Some(Commands::Remove(args)) => cmd_remove(args).await,
-        Some(Commands::Prune(args)) => lifecycle::prune(args).await,
-        Some(Commands::Lock(args)) => lifecycle::lock(args).await,
-        Some(Commands::Unlock(args)) => lifecycle::unlock(args).await,
-        Some(Commands::Move(args)) => lifecycle::move_worktree(args).await,
-        Some(Commands::Repair(args)) => lifecycle::repair(args).await,
+        Some(Commands::Prune) => cmd_prune().await,
         Some(Commands::Status(args)) => cmd_status(args).await,
         Some(Commands::Tmux(args) | Commands::Zellij(args)) => cmd_tmux(args).await,
         Some(Commands::Task(args)) => cmd_task(args).await,
         Some(Commands::Version) => Ok(cmd_version()),
-        Some(Commands::Doctor(args)) => inspect::doctor(args).await,
-        Some(Commands::Branches(args)) => inspect::branches(args),
     }
 }
 
@@ -583,22 +498,6 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
     let git = Git::from_cwd()?;
     let wm = WorktreeManager::new(git.clone(), cfg.clone());
 
-    if args.detach {
-        if args.path.is_some() {
-            anyhow::bail!("--detach accepts one path; use --revision for the commit");
-        }
-        let path = args
-            .branch_name
-            .context("--detach requires a destination path")?;
-        let path = config::expand_path(&path)?;
-        wm.add_detached(&path, args.revision.as_deref())?;
-        if args.print_path {
-            println!("{}", path.display());
-        } else {
-            println!("Created detached worktree at {}", path.display());
-        }
-        return Ok(ExitCode::SUCCESS);
-    }
     let mut create_branch = args.branch;
     let (branch, custom_path) = if args.interactive {
         if args.branch_name.is_some() || args.path.is_some() {
@@ -668,22 +567,14 @@ async fn cmd_add(args: AddArgs) -> anyhow::Result<ExitCode> {
         wm.validate_worktree_path(path)?;
     }
 
-    if let Some(base) = args.base.as_deref() {
-        wm.add_from_base(&branch, Some(base), custom_path.as_deref())?;
-    } else {
-        wm.add(&branch, custom_path.as_deref(), create_branch)?;
-    }
-    if args.print_path {
-        println!("{}", wm.resolve(&branch)?.path);
-    } else {
-        println!("Created worktree for branch '{branch}'");
-    }
+    wm.add(&branch, custom_path.as_deref(), create_branch)?;
+    println!("Created worktree for branch '{branch}'");
     Ok(ExitCode::SUCCESS)
 }
 
 async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
     let cfg = load_cfg().await?;
-    let mut worktrees: Vec<Worktree> = if args.global {
+    let worktrees: Vec<Worktree> = if args.global {
         list_global_worktrees(&cfg)?
     } else {
         match Git::from_cwd() {
@@ -695,27 +586,6 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
         }
     };
 
-    if args.linked {
-        worktrees.retain(|wt| !wt.is_main);
-    }
-    if args.detached {
-        worktrees.retain(|wt| wt.branch == "HEAD");
-    }
-    if let Some(sort) = &args.sort {
-        match sort.as_str() {
-            "branch" => {
-                worktrees.sort_by(|a, b| a.branch.cmp(&b.branch).then_with(|| a.path.cmp(&b.path)))
-            }
-            "path" => worktrees.sort_by(|a, b| a.path.cmp(&b.path)),
-            _ => unreachable!("clap validates sort keys"),
-        }
-    }
-    if let Some(pattern) = &args.filter {
-        let pattern = pattern.to_lowercase();
-        worktrees.retain(|wt| {
-            wt.branch.to_lowercase().contains(&pattern) || wt.path.to_lowercase().contains(&pattern)
-        });
-    }
     if args.json {
         let mut out = serde_json::to_string_pretty(&worktrees)?;
         out.push('\n');
@@ -723,15 +593,6 @@ async fn cmd_list(args: ListArgs) -> anyhow::Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
-    if args.paths {
-        use std::io::Write as _;
-        let mut stdout = std::io::stdout().lock();
-        for worktree in &worktrees {
-            stdout.write_all(worktree.path.as_bytes())?;
-            stdout.write_all(if args.null_terminate { b"\0" } else { b"\n" })?;
-        }
-        return Ok(ExitCode::SUCCESS);
-    }
     print_worktree_table(&cfg, &worktrees, args.verbose)?;
     Ok(ExitCode::SUCCESS)
 }
@@ -752,7 +613,7 @@ fn list_global_worktrees(cfg: &crate::config::Config) -> anyhow::Result<Vec<Work
                 path: e.path,
                 branch,
                 commit_hash: e.commit_hash,
-                is_main: e.is_main,
+                is_main: false,
                 created_at: "0001-01-01T00:00:00Z".to_owned(),
             }
         })
@@ -802,17 +663,18 @@ async fn cmd_exec(_args: ExecArgs, raw_args: &[OsString]) -> anyhow::Result<Exit
 }
 
 fn extract_subcommand_args(raw_args: &[OsString], subcommand: &str) -> Option<Vec<OsString>> {
-    let mut args = raw_args.iter().skip(1);
-    while let Some(arg) = args.next() {
-        if arg == "-C" || arg == "--repo" {
-            args.next();
+    let mut found = false;
+    let mut out = Vec::new();
+    for arg in raw_args {
+        if !found {
+            if arg == subcommand {
+                found = true;
+            }
             continue;
         }
-        if arg == subcommand {
-            return Some(args.cloned().collect());
-        }
+        out.push(arg.clone());
     }
-    None
+    found.then_some(out)
 }
 
 async fn cmd_remove(args: RemoveArgs) -> anyhow::Result<ExitCode> {
@@ -832,6 +694,15 @@ async fn cmd_remove(args: RemoveArgs) -> anyhow::Result<ExitCode> {
         Err(_) => remove_global(&cfg, &args)?,
     }
 
+    Ok(ExitCode::SUCCESS)
+}
+
+async fn cmd_prune() -> anyhow::Result<ExitCode> {
+    let cfg = load_cfg().await?;
+    let git = Git::from_cwd()?;
+    let wm = WorktreeManager::new(git, cfg);
+    wm.prune()?;
+    println!("Pruned stale worktree information");
     Ok(ExitCode::SUCCESS)
 }
 
@@ -883,7 +754,7 @@ async fn collect_statuses_once(
                     path: e.path,
                     branch: e.branch,
                     commit_hash: e.commit_hash,
-                    is_main: e.is_main,
+                    is_main: false,
                     created_at: "0001-01-01T00:00:00Z".to_owned(),
                 })
                 .collect()
@@ -893,7 +764,7 @@ async fn collect_statuses_once(
     let collector = StatusCollector::new(StatusCollectorOptions {
         include_process: args.show_processes,
         fetch_remote: !args.no_fetch,
-        stale_threshold: status::stale_threshold(args.stale_days),
+        stale_threshold: Duration::from_secs(args.stale_days * 24 * 60 * 60),
         base_dir: cfg.worktree.base_dir.clone(),
         concurrency: cfg.status.concurrency,
     });
@@ -926,12 +797,6 @@ fn output_statuses(
             clean: usize,
             #[serde(rename = "Stale")]
             stale: usize,
-            #[serde(rename = "Staged")]
-            staged: usize,
-            #[serde(rename = "Conflict")]
-            conflict: usize,
-            #[serde(rename = "Unknown")]
-            unknown: usize,
         }
 
         #[derive(serde::Serialize)]
@@ -958,18 +823,6 @@ fn output_statuses(
                 modified,
                 clean,
                 stale,
-                staged: statuses
-                    .iter()
-                    .filter(|s| s.status == status::WorktreeState::Staged)
-                    .count(),
-                conflict: statuses
-                    .iter()
-                    .filter(|s| s.status == status::WorktreeState::Conflict)
-                    .count(),
-                unknown: statuses
-                    .iter()
-                    .filter(|s| s.status == status::WorktreeState::Unknown)
-                    .count(),
             },
             worktrees: statuses,
         };
@@ -986,9 +839,6 @@ fn output_statuses(
             "modified",
             "added",
             "deleted",
-            "untracked",
-            "staged",
-            "conflicts",
             "ahead",
             "behind",
             "last_activity",
@@ -1001,9 +851,6 @@ fn output_statuses(
                 s.git_status.modified.to_string(),
                 s.git_status.added.to_string(),
                 s.git_status.deleted.to_string(),
-                s.git_status.untracked.to_string(),
-                s.git_status.staged.to_string(),
-                s.git_status.conflicts.to_string(),
                 s.git_status.ahead.to_string(),
                 s.git_status.behind.to_string(),
                 s.last_activity.clone(),
@@ -1018,7 +865,7 @@ fn output_statuses(
 }
 
 fn format_changes(gs: status::GitStatus) -> String {
-    if !gs.is_dirty() {
+    if gs.modified == 0 && gs.added == 0 && gs.deleted == 0 && gs.untracked == 0 {
         return "-".to_owned();
     }
     let mut parts = Vec::new();
@@ -1033,12 +880,6 @@ fn format_changes(gs: status::GitStatus) -> String {
     }
     if gs.untracked > 0 {
         parts.push(format!("{} untracked", gs.untracked));
-    }
-    if gs.staged > 0 {
-        parts.push(format!("{} staged", gs.staged));
-    }
-    if gs.conflicts > 0 {
-        parts.push(format!("{} conflicted", gs.conflicts));
     }
     parts.join(", ")
 }
@@ -1184,9 +1025,7 @@ fn summarize_statuses(statuses: &[WorktreeStatus]) -> (usize, usize, usize, usiz
     let mut stale = 0usize;
     for s in statuses {
         match s.status {
-            status::WorktreeState::Modified
-            | status::WorktreeState::Staged
-            | status::WorktreeState::Conflict => changed += 1,
+            status::WorktreeState::Modified => changed += 1,
             status::WorktreeState::Clean => clean += 1,
             status::WorktreeState::Stale => stale += 1,
             _ => {}
@@ -2700,7 +2539,8 @@ fn get_local_worktree_path(
 ) -> anyhow::Result<String> {
     let wm = WorktreeManager::new(git.clone(), cfg.clone());
     let path = if let Some(pat) = pattern {
-        wm.resolve(pat)?.path
+        let matches = wm.get_matching_worktrees(pat)?;
+        resolve_one_worktree(matches, "worktree selection")?
     } else {
         let worktrees = wm.list()?;
         resolve_one_worktree(worktrees, "worktree selection")?
@@ -2814,10 +2654,9 @@ fn parse_exec_args(args: &[OsString]) -> anyhow::Result<ParsedExecArgs> {
                 if s.starts_with('-') {
                     anyhow::bail!("unknown flag: {s}");
                 }
-                if pattern.is_some() {
-                    anyhow::bail!("only one worktree selector is allowed before --");
+                if pattern.is_none() {
+                    pattern = Some(s.to_string());
                 }
-                pattern = Some(s.to_string());
             }
         }
     }
@@ -2883,10 +2722,24 @@ fn remove_local(
         anyhow::bail!("no removable worktrees found");
     }
 
-    let selected = if let Some(pattern) = args.pattern.as_deref() {
-        let worktree = wm.resolve(pattern)?;
-        anyhow::ensure!(!worktree.is_main, "cannot remove the main worktree");
-        vec![worktree]
+    let selected = if let Some(pat) = args.pattern.as_deref() {
+        let pat_raw = pat;
+        let pat = pat_raw.to_lowercase();
+        let matches: Vec<Worktree> = candidates
+            .iter()
+            .filter(|w| {
+                w.branch.to_lowercase().contains(&pat) || w.path.to_lowercase().contains(&pat)
+            })
+            .cloned()
+            .collect();
+        if matches.is_empty() {
+            anyhow::bail!("no worktree found matching pattern: {pat_raw}");
+        }
+        if matches.len() == 1 {
+            matches
+        } else {
+            pick_many_worktrees("Select worktrees", &matches)?
+        }
     } else {
         pick_many_worktrees("Select worktrees", &candidates)?
     };
@@ -2902,7 +2755,6 @@ fn remove_local(
         return Ok(());
     }
 
-    let mut failed = 0usize;
     for wt in selected {
         let path = std::path::PathBuf::from(&wt.path);
         if args.delete_branch {
@@ -2914,7 +2766,6 @@ fn remove_local(
                 args.force_delete_branch,
             ) {
                 eprintln!("Error: failed to remove {}: {e}", wt.branch);
-                failed += 1;
                 continue;
             }
             println!("Removed worktree: {}", wt.branch);
@@ -2922,14 +2773,12 @@ fn remove_local(
         } else {
             if let Err(e) = wm.remove(&path, args.force) {
                 eprintln!("Error: failed to remove {}: {e}", wt.branch);
-                failed += 1;
                 continue;
             }
             println!("Removed worktree: {}", wt.branch);
         }
     }
 
-    anyhow::ensure!(failed == 0, "{failed} worktree operation(s) failed");
     Ok(())
 }
 
@@ -2974,7 +2823,6 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
         return Ok(());
     }
 
-    let mut failed = 0usize;
     for e in selected {
         let git = Git::new(PathBuf::from(&e.path));
         let wm = WorktreeManager::new(git, cfg.clone());
@@ -2989,7 +2837,6 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
             ) {
                 let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
                 eprintln!("Error: failed to remove {repo}:{}: {err}", e.branch);
-                failed += 1;
                 continue;
             }
             let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
@@ -2999,7 +2846,6 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
             if let Err(err) = wm.remove(&path, args.force) {
                 let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
                 eprintln!("Error: failed to remove {repo}:{}: {err}", e.branch);
-                failed += 1;
                 continue;
             }
             let repo = e.repository.clone().unwrap_or_else(|| "unknown".to_owned());
@@ -3007,7 +2853,6 @@ fn remove_global(cfg: &crate::config::Config, args: &RemoveArgs) -> anyhow::Resu
         }
     }
 
-    anyhow::ensure!(failed == 0, "{failed} worktree operation(s) failed");
     Ok(())
 }
 
